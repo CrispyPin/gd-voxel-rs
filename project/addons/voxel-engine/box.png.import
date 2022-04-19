@@ -2,8 +2,8 @@
 
 importer="texture"
 type="StreamTexture"
-path.s3tc="res://.import/box.png-196cb2b6d7422a4ab3b9c60b5a994fe3.s3tc.stex"
-path.etc2="res://.import/box.png-196cb2b6d7422a4ab3b9c60b5a994fe3.etc2.stex"
+path.s3tc="res://.import/box.png-90c58923ce2712ad99d9b03f47bd5d20.s3tc.stex"
+path.etc2="res://.import/box.png-90c58923ce2712ad99d9b03f47bd5d20.etc2.stex"
 metadata={
 "imported_formats": [ "s3tc", "etc2" ],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://box.png"
-dest_files=[ "res://.import/box.png-196cb2b6d7422a4ab3b9c60b5a994fe3.s3tc.stex", "res://.import/box.png-196cb2b6d7422a4ab3b9c60b5a994fe3.etc2.stex" ]
+source_file="res://addons/voxel-engine/box.png"
+dest_files=[ "res://.import/box.png-90c58923ce2712ad99d9b03f47bd5d20.s3tc.stex", "res://.import/box.png-90c58923ce2712ad99d9b03f47bd5d20.etc2.stex" ]
 
 [params]
 

@@ -2,9 +2,9 @@
 
 [ext_resource path="res://addons/voxel-engine/chunk.gdns" type="Script" id=1]
 [ext_resource path="res://camera.gd" type="Script" id=2]
-[ext_resource path="res://boxes.material" type="Material" id=3]
+[ext_resource path="res://addons/voxel-engine/boxes.material" type="Material" id=3]
 
-[node name="Node" type="Node"]
+[node name="Main" type="Node"]
 
 [node name="Chunk" type="Spatial" parent="."]
 script = ExtResource( 1 )
@@ -21,3 +21,5 @@ speed = 24
 transform = Transform( 1, 0, 0, 0, 0.77128, 0.636496, 0, -0.636496, 0.77128, 0, 3.56554, 0 )
 shadow_enabled = true
 directional_shadow_mode = 0
+
+[node name="VoxelWorld" type="Node" parent="."]
