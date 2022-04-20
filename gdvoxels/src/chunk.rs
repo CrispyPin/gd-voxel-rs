@@ -31,13 +31,14 @@ pub struct Chunk {
 	mesh_index: Int32Array,
 	mesh_index_offset: usize,
 	rng: Ref<RandomNumberGenerator, Unique>,
+	needs_remesh: bool,
 }
 
 
 #[methods]
 impl Chunk {
 	pub fn new(_owner: &ChunkNodeType) -> Self {
-		let mut new = Self {
+		Self {
 			voxels: [0; VOLUME],
 			array_mesh: ArrayMesh::new().into_shared(),
 			mesh_vertex: PoolArray::new(),
@@ -46,9 +47,8 @@ impl Chunk {
 			mesh_index: PoolArray::new(),
 			mesh_index_offset: 0,
 			rng: RandomNumberGenerator::new(),
-		};
-		new.generate();
-		new
+			needs_remesh: true,
+		}
 	}
 
 	#[export]
@@ -58,7 +58,7 @@ impl Chunk {
 			.unwrap()
 		};
 		mesh_instance.set_mesh(&self.array_mesh);
-		self.mesh_simple();
+		self.generate();
 	}
 
 	#[export]
@@ -70,6 +70,35 @@ impl Chunk {
 		if input.is_action_just_pressed("f4", false) {
 			self.randomise(0.2);
 		}
+		if self.needs_remesh {
+			self.mesh_simple();
+			self.needs_remesh = false;
+		}
+	}
+
+	/// cast a ray through the chunk, source is in world space coords
+	/// max_len of 0.0 is equivalent to infinity
+	pub fn cast_ray(&self, source: Vector3, direction: Vector3, max_len: f32) -> Option<Vector3>{
+		let max_len = if max_len == 0.0 { f32::INFINITY } else {max_len};
+		let direction = direction.normalized();
+		let source = local_pos(source);
+
+		let mut ray_len = 1.0;
+
+		while ray_len <= max_len {
+			let pos = source + direction * ray_len;
+			if !in_bounds(pos) {
+				// godot_print!("{:?} {:?} {:?}", pos, source, direction);
+				return None;
+			}
+			if self.get_voxel_unsafe(pos) != EMPTY {
+				return Some(pos);
+			}
+
+			let deltas = (step(0.0, direction) - fract(pos)) / direction;
+			ray_len += mincomp(deltas).max(0.0001);
+		}
+		None
 	}
 
 	/// fast but suboptimal mesh
@@ -188,12 +217,28 @@ impl Chunk {
 
 	fn generate(&mut self) {
 		self.voxels = [0; VOLUME];
+		// grid
+		for i in 0..WIDTH {
+			self.set_voxel_unsafe(uvec3(i, 0, 0), 1);
+			self.set_voxel_unsafe(uvec3(i, 0, WIDTH-1), 1);
+			self.set_voxel_unsafe(uvec3(i, WIDTH-1, 0), 1);
+			self.set_voxel_unsafe(uvec3(i, WIDTH-1, WIDTH-1), 1);
+			
+			self.set_voxel_unsafe(uvec3(0, 0, i), 1);
+			self.set_voxel_unsafe(uvec3(0, WIDTH-1, i), 1);
+			self.set_voxel_unsafe(uvec3(WIDTH-1, 0, i), 1);
+			self.set_voxel_unsafe(uvec3(WIDTH-1, WIDTH-1, i), 1);
+
+			self.set_voxel_unsafe(uvec3(0, i, 0), 1);
+			self.set_voxel_unsafe(uvec3(0, i, WIDTH-1), 1);
+			self.set_voxel_unsafe(uvec3(WIDTH-1, i, 0), 1);
+			self.set_voxel_unsafe(uvec3(WIDTH-1, i, WIDTH-1), 1);
+		}
+		// torus
 		for i in 0..VOLUME {
-			let pos = index_to_pos(i) - ivec3(1,1,1) * 16.0;
-			if torus(11.0, 4.0, pos.x, pos.y, pos.z)
-				|| torus(12.0, 4.0, pos.y, pos.x, pos.z)
-				|| torus(11.0, 4.0, pos.z, pos.y, pos.z) {
-					self.voxels[i] = 1
+			let pos = index_to_pos(i) - ivec3(1,1,1) * 16.0 + Vector3::new(0.5, 0.5, 0.5);
+			if torus(10.0, 5.0, pos.x, pos.y, pos.z) {
+				self.voxels[i] = 1;
 			}
 		}
 
@@ -217,6 +262,7 @@ impl Chunk {
 
 	pub fn set_voxel(&mut self, pos: Vector3, voxel: Voxel) {
 		if in_bounds(pos) {
+			// godot_print!("set voxel at {:?} \nto {} \nfrom {}", pos, voxel, self.get_voxel_unsafe(pos));
 			self.set_voxel_unsafe(pos, voxel);
 		}
 	}
@@ -224,6 +270,7 @@ impl Chunk {
 	#[inline]
 	pub fn set_voxel_unsafe(&mut self, pos: Vector3, voxel: Voxel) {
 		self.voxels[pos_to_index(pos)] = voxel;
+		self.needs_remesh = true;
 	}
 }
 
@@ -249,4 +296,23 @@ fn index_to_pos(i: usize) -> Vector3 {
 		((i/WIDTH % WIDTH) as f32).floor(),
 		(i % WIDTH) as f32
 	)
+}
+
+#[inline]
+fn fract(v: Vector3) -> Vector3 {
+	Vector3 { x: v.x.fract(), y: v.y.fract(), z: v.z.fract()}
+}
+
+#[inline]
+fn step(edge: f32, v: Vector3) -> Vector3 {
+	Vector3 {
+		x: (v.x >= edge) as u8 as f32,
+		y: (v.y >= edge) as u8 as f32,
+		z: (v.z >= edge) as u8 as f32,
+	}
+}
+
+#[inline]
+fn mincomp(v: Vector3) -> f32 {
+	v.x.min(v.y.min(v.z))
 }

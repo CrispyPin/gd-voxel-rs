@@ -41,20 +41,41 @@ impl VoxelWorld {
 
 	#[export]
 	fn _process(&mut self, owner: &Node, _delta: f32) {
-		let input = Input::godot_singleton();
-		if input.is_action_just_pressed("f2", false) || true {
+		// let input = Input::godot_singleton();
+		// if input.is_action_just_pressed("f2", false) {
 			self.load_near(owner);
-		}
+		// }
 	}
 
 	#[export]
 	fn cast_ray(&mut self, _owner: &Node, source: Vector3, direction: Vector3) -> Vector3 {
-		source
+		let start_loc = chunk_loc(source);
+		if self.chunk_is_loaded(start_loc) {
+			let chunk = self.get_chunk(start_loc);
+			let hit =  chunk.map(
+				|chunk, _owner| -> Option<Vector3> {
+					chunk.cast_ray(local_pos(source), direction, 0.0)
+			}).unwrap();
+			
+			if let Some(pos) = hit {
+				return pos.floor() + start_loc*(WIDTH as f32);
+			}
+		}
+		Vector3::ZERO
+	}
+
+	#[export]
+	fn set_voxel(&mut self, _owner: &Node, pos: Vector3, voxel: Voxel) {
+		let chunk = self.get_chunk(chunk_loc(pos));
+		chunk.map_mut(|chunk, _owner| {
+			chunk.set_voxel(local_pos(pos), voxel);
+		}).unwrap();
+
 	}
 
 	/// load chunks around player pos
 	fn load_near(&mut self, owner: &Node) {
-		let center_chunk = chunk_pos(self.player_pos);
+		let center_chunk = chunk_loc(self.player_pos);
 		let radius = self.load_distance as i32;
 		let range = -radius..(radius + 1);
 		for x in range.clone() {
@@ -97,6 +118,16 @@ impl VoxelWorld {
 
 	fn chunk_is_loaded(&self, loc: Vector3) -> bool {
 		self.chunks.contains_key(&key(loc))
+	}
+
+	fn get_chunk(&mut self, loc: Vector3) -> TInstance<Chunk> {
+		unsafe {
+			self.chunks.get(&key(loc))
+			.unwrap()
+			.assume_safe()
+			.cast_instance::<Chunk>()
+			.unwrap()
+		}
 	}
 }
 
