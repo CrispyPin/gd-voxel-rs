@@ -47,17 +47,18 @@ impl Chunk {
 			mesh_index_offset: 0,
 			rng: RandomNumberGenerator::new(),
 		};
-		new.randomise(0.2);
+		new.generate();
 		new
 	}
 
 	#[export]
-	fn _ready(&self, owner: &ChunkNodeType) {
+	fn _ready(&mut self, owner: &ChunkNodeType) {
 		let mesh_instance = unsafe { 
 			owner.get_node_as::<MeshInstance>("ChunkMesh")
 			.unwrap()
 		};
 		mesh_instance.set_mesh(&self.array_mesh);
+		self.mesh_simple();
 	}
 
 	#[export]
@@ -85,7 +86,7 @@ impl Chunk {
 				let pos = index_to_pos(index);
 				for face in 0..6 {
 					let normal = NORMALS[face];
-					if self.get_voxel_internal(pos + normal) != EMPTY {
+					if self.get_voxel(pos + normal) != EMPTY {
 						continue;
 					}
 					let mut verts = [Vector3::ZERO; 4];
@@ -168,33 +169,60 @@ impl Chunk {
 	}
 
 	fn randomise(&mut self, amount: f64) {
-		// self.voxels = [0; VOLUME];
+		self.voxels = [0; VOLUME];
+		for i in 0..VOLUME {
+			if self.rng.randf() < amount {
+				self.voxels[i] = 1;
+			}
+		}
+	}
+
+	fn checkerboard(&mut self) {
 		for i in 0..VOLUME {
 			self.voxels[i] = ((i % 2 
 					+ (i / WIDTH % 2)
 					+ (i / AREA % 2))
 				 % 2) as Voxel;
-			// if self.rng.randf() < amount {
-			// 	self.voxels[i] = 1;
-			// }
 		}
 	}
 
-	#[inline]
-	fn get_voxel_internal(&self, pos: Vector3) -> Voxel {
-		if !in_bounds(pos) {
-			return EMPTY;
+	fn generate(&mut self) {
+		self.voxels = [0; VOLUME];
+		for i in 0..VOLUME {
+			let pos = index_to_pos(i) - ivec3(1,1,1) * 16.0;
+			if torus(11.0, 4.0, pos.x, pos.y, pos.z)
+				|| torus(12.0, 4.0, pos.y, pos.x, pos.z)
+				|| torus(11.0, 4.0, pos.z, pos.y, pos.z) {
+					self.voxels[i] = 1
+			}
 		}
+
+		fn torus(major: f32, minor: f32, x: f32, y: f32, z: f32) -> bool {
+			let q = Vector2::new(Vector2::new(x, z).length() - major, y);
+			q.length() - minor < 0.0
+		}
+	}
+
+	pub fn get_voxel(&self, pos: Vector3) -> Voxel {
+		if in_bounds(pos) {
+			return self.get_voxel_unsafe(pos);
+		}
+		EMPTY
+	}
+	
+	#[inline]
+	pub fn get_voxel_unsafe(&self, pos: Vector3) -> Voxel {
 		self.voxels[pos_to_index(pos)]
 	}
 
-	#[export]
-	fn get_voxel(&self, _owner: &ChunkNodeType, pos: Vector3) -> Voxel {
-		self.get_voxel_internal(pos)
+	pub fn set_voxel(&mut self, pos: Vector3, voxel: Voxel) {
+		if in_bounds(pos) {
+			self.set_voxel_unsafe(pos, voxel);
+		}
 	}
-
-	#[export]
-	fn set_voxel(&mut self, _owner: &ChunkNodeType, pos: Vector3, voxel: Voxel) {
+	
+	#[inline]
+	pub fn set_voxel_unsafe(&mut self, pos: Vector3, voxel: Voxel) {
 		self.voxels[pos_to_index(pos)] = voxel;
 	}
 }
@@ -209,7 +237,9 @@ fn in_bounds(pos: Vector3) -> bool{
 
 #[inline]
 fn pos_to_index(pos: Vector3) -> usize {
-	pos.x as usize * AREA + pos.y as usize * WIDTH + pos.z as usize
+	pos.x as usize * AREA
+	+ pos.y as usize * WIDTH
+	+ pos.z as usize
 }
 
 #[inline]

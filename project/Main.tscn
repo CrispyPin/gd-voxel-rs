@@ -1,17 +1,23 @@
-[gd_scene load_steps=3 format=2]
+[gd_scene load_steps=4 format=2]
 
 [ext_resource path="res://addons/voxel-engine/VoxelWorld.tscn" type="PackedScene" id=1]
 [ext_resource path="res://camera.gd" type="Script" id=2]
+[ext_resource path="res://interaction.gd" type="Script" id=3]
 
 [node name="Main" type="Node"]
 
 [node name="VoxelWorld" parent="." instance=ExtResource( 1 )]
+load_distance = 1
 
 [node name="Camera" type="Camera" parent="."]
 transform = Transform( -4.37114e-08, 0, -1, 0, 1, 0, 1, 0, -4.37114e-08, -16, 16, 16 )
 far = 1024.0
 script = ExtResource( 2 )
-speed = 24
+speed = 64
+
+[node name="Interaction" type="Spatial" parent="Camera"]
+transform = Transform( -4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, -16, -16, -16 )
+script = ExtResource( 3 )
 
 [node name="DirectionalLight" type="DirectionalLight" parent="."]
 transform = Transform( 1, 0, 0, 0, 0.77128, 0.636496, 0, -0.636496, 0.77128, 0, 3.56554, 0 )

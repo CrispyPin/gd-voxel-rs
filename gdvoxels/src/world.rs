@@ -9,9 +9,11 @@ const CHUNK_FP: &str = "res://addons/voxel-engine/Chunk.tscn";
 #[derive(NativeClass)]
 #[inherit(Node)]
 pub struct VoxelWorld {
-	chunks: HashMap<(i32, i32, i32), Ref<ChunkNodeType, Shared>>,
+	#[property]
 	load_distance: u16,
+	#[property]
 	player_pos: Vector3,
+	chunks: HashMap<(i32, i32, i32), Ref<ChunkNodeType, Shared>>,
 	chunk_resource: Ref<PackedScene>,
 }
 
@@ -37,6 +39,19 @@ impl VoxelWorld {
 		self.load_near(owner);
 	}
 
+	#[export]
+	fn _process(&mut self, owner: &Node, _delta: f32) {
+		let input = Input::godot_singleton();
+		if input.is_action_just_pressed("f2", false) || true {
+			self.load_near(owner);
+		}
+	}
+
+	#[export]
+	fn cast_ray(&mut self, _owner: &Node, source: Vector3, direction: Vector3) -> Vector3 {
+		source
+	}
+
 	/// load chunks around player pos
 	fn load_near(&mut self, owner: &Node) {
 		let center_chunk = chunk_pos(self.player_pos);
@@ -58,10 +73,10 @@ impl VoxelWorld {
 		if self.chunk_is_loaded(loc) {
 			return;
 		}
-		self.generate(owner, loc);
+		self.create_chunk(owner, loc);
 	}
 
-	fn generate(&mut self, owner: &Node, loc: Vector3) {
+	fn create_chunk(&mut self, owner: &Node, loc: Vector3) {
 		let new_chunk = unsafe {
 			self.chunk_resource
 				.assume_safe()
@@ -86,6 +101,7 @@ impl VoxelWorld {
 }
 
 /// convert Vector3 to i32 tuple to use as a key in chunk array
+#[inline]
 fn key(loc: Vector3) -> (i32, i32, i32) {
 	(loc.x as i32, loc.y as i32, loc.z as i32)
 }
