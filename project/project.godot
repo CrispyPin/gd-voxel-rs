@@ -14,6 +14,10 @@ config/name="voxel-rs"
 run/main_scene="res://Main.tscn"
 config/icon="res://icon.png"
 
+[display]
+
+window/vsync/use_vsync=false
+
 [input]
 
 f3={

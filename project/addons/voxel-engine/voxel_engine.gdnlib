@@ -7,8 +7,8 @@ reloadable=true
 
 [entry]
 
-Windows.64=""
-X11.64="res://addons/voxel-engine/bin/libgdvoxels.so"
+Windows.64="res://addons/voxel-engine/bin/windows/libgdvoxels.dll"
+X11.64="res://addons/voxel-engine/bin/linux/libgdvoxels.so"
 
 [dependencies]
 

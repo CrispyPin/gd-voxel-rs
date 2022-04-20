@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=2]
+
+[ext_resource path="res://addons/voxel-engine/voxel_world.gdns" type="Script" id=1]
+
+[node name="VoxelWorld" type="Node"]
+script = ExtResource( 1 )

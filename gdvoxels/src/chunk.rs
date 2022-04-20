@@ -4,25 +4,26 @@ use gdnative::api::{ArrayMesh, MeshInstance, RandomNumberGenerator, Mesh};
 use crate::common::*;
 
 const NORMALS: [Vector3; 6] = [
-	Vector3::new(1.0, 0.0, 0.0), Vector3::new(-1.0, 0.0, 0.0),
-	Vector3::new(0.0, 1.0, 0.0), Vector3::new(0.0, -1.0, 0.0),
-	Vector3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 0.0, -1.0)];
+	ivec3(1, 0, 0), ivec3(-1, 0, 0),
+	ivec3(0, 1, 0), ivec3(0, -1, 0),
+	ivec3(0, 0, 1), ivec3(0, 0, -1)];
 
 const FACE_VERTS: [[Vector3; 4]; 6] = [
-	[Vector3::new(1.0, 0.0, 1.0), Vector3::new(1.0, 1.0, 1.0), Vector3::new(1.0, 1.0, 0.0), Vector3::new(1.0, 0.0, 0.0)],
-	[Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 1.0, 0.0), Vector3::new(0.0, 1.0, 1.0), Vector3::new(0.0, 0.0, 1.0)],
-	[Vector3::new(0.0, 1.0, 0.0), Vector3::new(1.0, 1.0, 0.0), Vector3::new(1.0, 1.0, 1.0), Vector3::new(0.0, 1.0, 1.0)],
-	[Vector3::new(0.0, 0.0, 1.0), Vector3::new(1.0, 0.0, 1.0), Vector3::new(1.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0)],
-	[Vector3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 1.0, 1.0), Vector3::new(1.0, 1.0, 1.0), Vector3::new(1.0, 0.0, 1.0)],
-	[Vector3::new(1.0, 0.0, 0.0), Vector3::new(1.0, 1.0, 0.0), Vector3::new(0.0, 1.0, 0.0), Vector3::new(0.0, 0.0, 0.0)]];
+	[ivec3(1, 0, 1), ivec3(1, 1, 1), ivec3(1, 1, 0), ivec3(1, 0, 0)],
+	[ivec3(0, 0, 0), ivec3(0, 1, 0), ivec3(0, 1, 1), ivec3(0, 0, 1)],
+	[ivec3(0, 1, 0), ivec3(1, 1, 0), ivec3(1, 1, 1), ivec3(0, 1, 1)],
+	[ivec3(0, 0, 1), ivec3(1, 0, 1), ivec3(1, 0, 0), ivec3(0, 0, 0)],
+	[ivec3(0, 0, 1), ivec3(0, 1, 1), ivec3(1, 1, 1), ivec3(1, 0, 1)],
+	[ivec3(1, 0, 0), ivec3(1, 1, 0), ivec3(0, 1, 0), ivec3(0, 0, 0)]];
 
 const QUAD_OFFSETS: [usize; 6] = [0, 1, 2, 2, 3, 0];
 
+pub type ChunkNodeType = Spatial;
 
 #[derive(NativeClass)]
-#[inherit(Node)]
+#[inherit(ChunkNodeType)]
 pub struct Chunk {
-	voxels: ChunkData,
+	voxels: [Voxel; VOLUME],
 	array_mesh: Ref<ArrayMesh, Shared>,
 	mesh_vertex: PoolArray<Vector3>,
 	mesh_normal: PoolArray<Vector3>,
@@ -35,7 +36,7 @@ pub struct Chunk {
 
 #[methods]
 impl Chunk {
-	fn new(_owner: &Node) -> Self {
+	pub fn new(_owner: &ChunkNodeType) -> Self {
 		let mut new = Self {
 			voxels: [0; VOLUME],
 			array_mesh: ArrayMesh::new().into_shared(),
@@ -51,7 +52,7 @@ impl Chunk {
 	}
 
 	#[export]
-	fn _ready(&self, owner: &Node) {
+	fn _ready(&self, owner: &ChunkNodeType) {
 		let mesh_instance = unsafe { 
 			owner.get_node_as::<MeshInstance>("ChunkMesh")
 			.unwrap()
@@ -60,7 +61,7 @@ impl Chunk {
 	}
 
 	#[export]
-	fn _process(&mut self, _owner: &Node, _delta: f32) {
+	fn _process(&mut self, _owner: &ChunkNodeType, _delta: f32) {
 		let input = Input::godot_singleton();
 		if input.is_action_just_pressed("f3", false) {
 			self.mesh_simple();
@@ -70,6 +71,7 @@ impl Chunk {
 		}
 	}
 
+	/// fast but suboptimal mesh
 	fn mesh_simple(&mut self) {
 		self.clear_mesh_data();
 		let mut quad_capacity = 0;
@@ -80,7 +82,7 @@ impl Chunk {
 					self.resize_mesh_data(64);
 					quad_capacity += 64;
 				}
-				let pos = Chunk::index_to_pos(index);
+				let pos = index_to_pos(index);
 				for face in 0..6 {
 					let normal = NORMALS[face];
 					if self.get_voxel_internal(pos + normal) != EMPTY {
@@ -94,9 +96,11 @@ impl Chunk {
 				}
 			}
 		}
+		self.resize_mesh_data(self.mesh_index_offset as i32 - quad_capacity as i32);
 		self.apply_mesh_data();
 	}
 
+	/// add a quad from 4 verts, in the order: [0, 1, 2, 2, 3, 0]
 	fn mesh_quad(&mut self, verts: [Vector3; 4], face: usize) {
 		let mut vertex_w = self.mesh_vertex.write();
 		let mut normal_w = self.mesh_normal.write();	
@@ -124,6 +128,7 @@ impl Chunk {
 		self.mesh_index_offset += 1;
 	}
 
+	/// allocate more space for `quad_count` more quads
 	fn resize_mesh_data(&mut self, quad_count: i32) {
 		let vert_count = self.mesh_vertex.len() + quad_count * 4;
 		let index_count = self.mesh_index.len() + quad_count * 6;
@@ -163,47 +168,55 @@ impl Chunk {
 	}
 
 	fn randomise(&mut self, amount: f64) {
-		self.voxels = [0; VOLUME];
+		// self.voxels = [0; VOLUME];
 		for i in 0..VOLUME {
-			if self.rng.randf() < amount {
-				self.voxels[i] = 1;
-			}
+			self.voxels[i] = ((i % 2 
+					+ (i / WIDTH % 2)
+					+ (i / AREA % 2))
+				 % 2) as Voxel;
+			// if self.rng.randf() < amount {
+			// 	self.voxels[i] = 1;
+			// }
 		}
 	}
 
+	#[inline]
 	fn get_voxel_internal(&self, pos: Vector3) -> Voxel {
-		if !Chunk::in_bounds(pos) {
+		if !in_bounds(pos) {
 			return EMPTY;
 		}
-		self.voxels[Chunk::pos_to_index(pos)]
+		self.voxels[pos_to_index(pos)]
 	}
 
 	#[export]
-	fn get_voxel(&self, _owner: &Node, pos: Vector3) -> Voxel {
+	fn get_voxel(&self, _owner: &ChunkNodeType, pos: Vector3) -> Voxel {
 		self.get_voxel_internal(pos)
 	}
 
 	#[export]
-	fn set_voxel(&mut self, _owner: &Node, pos: Vector3, voxel: Voxel) {
-		self.voxels[Chunk::pos_to_index(pos)] = voxel;
+	fn set_voxel(&mut self, _owner: &ChunkNodeType, pos: Vector3, voxel: Voxel) {
+		self.voxels[pos_to_index(pos)] = voxel;
 	}
+}
 
-	fn in_bounds(pos: Vector3) -> bool{
-		const WIDTH_F: f32 = WIDTH as f32;
-		pos.x >= 0.0 && pos.x < WIDTH_F &&
-		pos.y >= 0.0 && pos.y < WIDTH_F &&
-		pos.z >= 0.0 && pos.z < WIDTH_F
-	}
+#[inline]
+fn in_bounds(pos: Vector3) -> bool{
+	const WIDTH_F: f32 = WIDTH as f32;
+	pos.x >= 0.0 && pos.x < WIDTH_F &&
+	pos.y >= 0.0 && pos.y < WIDTH_F &&
+	pos.z >= 0.0 && pos.z < WIDTH_F
+}
 
-	fn pos_to_index(pos: Vector3) -> usize {
-		pos.x as usize * AREA + pos.y as usize * WIDTH + pos.z as usize
-	}
+#[inline]
+fn pos_to_index(pos: Vector3) -> usize {
+	pos.x as usize * AREA + pos.y as usize * WIDTH + pos.z as usize
+}
 
-	fn index_to_pos(i: usize) -> Vector3 {
-		Vector3::new(
-			((i / AREA) as f32).floor(),
-			((i/WIDTH % WIDTH) as f32).floor(),
-			(i % WIDTH) as f32
-		)
-	}
+#[inline]
+fn index_to_pos(i: usize) -> Vector3 {
+	Vector3::new(
+		((i / AREA) as f32).floor(),
+		((i/WIDTH % WIDTH) as f32).floor(),
+		(i % WIDTH) as f32
+	)
 }
