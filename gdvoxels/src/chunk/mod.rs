@@ -1,35 +1,19 @@
 use gdnative::prelude::*;
-use gdnative::api::{ArrayMesh, MeshInstance, RandomNumberGenerator, Mesh};
+use gdnative::api::{ArrayMesh, MeshInstance, RandomNumberGenerator};
 
 use crate::common::*;
-
-const NORMALS: [Vector3; 6] = [
-	ivec3(1, 0, 0), ivec3(-1, 0, 0),
-	ivec3(0, 1, 0), ivec3(0, -1, 0),
-	ivec3(0, 0, 1), ivec3(0, 0, -1)];
-
-const FACE_VERTS: [[Vector3; 4]; 6] = [
-	[ivec3(1, 0, 1), ivec3(1, 1, 1), ivec3(1, 1, 0), ivec3(1, 0, 0)],
-	[ivec3(0, 0, 0), ivec3(0, 1, 0), ivec3(0, 1, 1), ivec3(0, 0, 1)],
-	[ivec3(0, 1, 0), ivec3(1, 1, 0), ivec3(1, 1, 1), ivec3(0, 1, 1)],
-	[ivec3(0, 0, 1), ivec3(1, 0, 1), ivec3(1, 0, 0), ivec3(0, 0, 0)],
-	[ivec3(0, 0, 1), ivec3(0, 1, 1), ivec3(1, 1, 1), ivec3(1, 0, 1)],
-	[ivec3(1, 0, 0), ivec3(1, 1, 0), ivec3(0, 1, 0), ivec3(0, 0, 0)]];
-
-const QUAD_OFFSETS: [usize; 6] = [0, 1, 2, 2, 3, 0];
+mod mesh;
+use mesh::*;
 
 pub type ChunkNodeType = Spatial;
+
 
 #[derive(NativeClass)]
 #[inherit(ChunkNodeType)]
 pub struct Chunk {
 	voxels: [Voxel; VOLUME],
 	array_mesh: Ref<ArrayMesh, Shared>,
-	mesh_vertex: PoolArray<Vector3>,
-	mesh_normal: PoolArray<Vector3>,
-	mesh_uv: PoolArray<Vector2>,
-	mesh_index: Int32Array,
-	mesh_index_offset: usize,
+	mesh: ChunkMesh,
 	rng: Ref<RandomNumberGenerator, Unique>,
 	needs_remesh: bool,
 	location: Vector3,
@@ -42,11 +26,7 @@ impl Chunk {
 		Self {
 			voxels: [0; VOLUME],
 			array_mesh: ArrayMesh::new().into_shared(),
-			mesh_vertex: PoolArray::new(),
-			mesh_normal: PoolArray::new(),
-			mesh_uv: PoolArray::new(),
-			mesh_index: PoolArray::new(),
-			mesh_index_offset: 0,
+			mesh: ChunkMesh::new(),
 			rng: RandomNumberGenerator::new(),
 			needs_remesh: true,
 			location: Vector3::ZERO,
@@ -85,7 +65,6 @@ impl Chunk {
 
 		let mut ray_len = 0.0;
 
-		// 
 		let stepped_dir = step(0.0, dir);
 		
 		while ray_len <= max_len {
@@ -111,15 +90,11 @@ impl Chunk {
 
 	/// fast but suboptimal mesh
 	fn mesh_simple(&mut self) {
-		self.clear_mesh_data();
-		let mut quad_capacity = 0;
+		self.mesh.clear();
 
 		for index in 0..VOLUME {
 			if self.voxels[index] != EMPTY {
-				if self.mesh_index_offset + 6 > quad_capacity {
-					self.resize_mesh_data(64);
-					quad_capacity += 64;
-				}
+				self.mesh.allocate_batch(6, 64);
 				let pos = index_to_pos(index);
 				for face in 0..6 {
 					let normal = NORMALS[face];
@@ -130,79 +105,11 @@ impl Chunk {
 					for i in 0..4 {
 						verts[i] = pos + FACE_VERTS[face][i];
 					}
-					self.mesh_quad(verts, face);
+					self.mesh.add_quad(verts, face);
 				}
 			}
 		}
-		self.resize_mesh_data(self.mesh_index_offset as i32 - quad_capacity as i32);
-		self.apply_mesh_data();
-	}
-
-	/// add a quad from 4 verts, in the order: [0, 1, 2, 2, 3, 0]
-	fn mesh_quad(&mut self, verts: [Vector3; 4], face: usize) {
-		let mut vertex_w = self.mesh_vertex.write();
-		let mut normal_w = self.mesh_normal.write();	
-		let mut index_w = self.mesh_index.write();
-	
-		// let color_w = self.mesh_color.write();
-		// let col = Color::from_rgb(rng.randf(), rng.randf(), rng.randf());
-	
-		for v in 0..4 {
-			vertex_w[self.mesh_index_offset * 4 + v] = verts[v];
-			normal_w[self.mesh_index_offset * 4 + v] = NORMALS[face];
-			// color_w[mesh_index_offset * 4 + v] = col;
-		}
-
-		for i in 0..6 {
-			index_w[self.mesh_index_offset * 6 + i] = (self.mesh_index_offset * 4 + QUAD_OFFSETS[i]) as i32;
-		}
-
-		let mut uv_w = self.mesh_uv.write();
-		uv_w[self.mesh_index_offset * 4] = Vector2::new(0.0, 1.0);
-		uv_w[self.mesh_index_offset * 4+1] = Vector2::new(0.0, 0.0);
-		uv_w[self.mesh_index_offset * 4+2] = Vector2::new(1.0, 0.0);
-		uv_w[self.mesh_index_offset * 4+3] = Vector2::new(1.0, 1.0);
-
-		self.mesh_index_offset += 1;
-	}
-
-	/// allocate more space for `quad_count` more quads
-	fn resize_mesh_data(&mut self, quad_count: i32) {
-		let vert_count = self.mesh_vertex.len() + quad_count * 4;
-		let index_count = self.mesh_index.len() + quad_count * 6;
-		
-		self.mesh_vertex.resize(vert_count);
-		self.mesh_normal.resize(vert_count);
-		self.mesh_index.resize(index_count);
-
-		// mesh_color.resize(vert_count);
-		self.mesh_uv.resize(vert_count);
-	}
-
-	fn apply_mesh_data(&mut self) {
-		let mesh_data = VariantArray::new_thread_local();
-		mesh_data.resize(Mesh::ARRAY_MAX as i32);
-		mesh_data.set(Mesh::ARRAY_VERTEX as i32, &self.mesh_vertex);
-		mesh_data.set(Mesh::ARRAY_NORMAL as i32, &self.mesh_normal);
-		mesh_data.set(Mesh::ARRAY_INDEX as i32, &self.mesh_index);
-		mesh_data.set(Mesh::ARRAY_TEX_UV as i32, &self.mesh_uv);
-		
-		let mesh_data = unsafe { mesh_data.assume_unique().into_shared() };
-		let array_mesh = unsafe { self.array_mesh.assume_safe() };
-
-		if array_mesh.get_surface_count() > 0 {
-			array_mesh.surface_remove(0);
-		}
-
-		array_mesh.add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, mesh_data, VariantArray::new_shared(), 0);
-	}
-
-	fn clear_mesh_data(&mut self) {
-		self.mesh_index_offset = 0;
-		self.mesh_vertex.resize(0);
-		self.mesh_normal.resize(0);
-		self.mesh_index.resize(0);
-		self.mesh_uv.resize(0);
+		self.mesh.apply(&self.array_mesh);
 	}
 
 	fn randomise(&mut self, amount: f64) {
@@ -323,7 +230,6 @@ fn calc_normal(hit_pos: Vector3) -> Vector3 {
 	let axis = centered.abs().max_axis();
 	axis.vec() * centered.sign()
 }
-
 
 fn step(e: f32, v: Vector3) -> Vector3 {
 	Vector3::new(
