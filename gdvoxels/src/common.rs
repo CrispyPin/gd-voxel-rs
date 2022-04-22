@@ -1,4 +1,4 @@
-use gdnative::prelude::*;
+use gdnative::{prelude::*, core_types::Axis};
 
 pub const WIDTH: usize = 32;
 pub const AREA: usize = WIDTH * WIDTH;
@@ -26,4 +26,49 @@ pub const fn ivec3(x: i32, y: i32, z: i32) -> Vector3 {
 /// [usize] to [Vector3]
 pub const fn uvec3(x: usize, y: usize, z: usize) -> Vector3 {
 	Vector3::new(x as f32, y as f32, z as f32)
+}
+
+#[derive(ToVariant)]
+pub struct RayResult {
+	pub hit: bool,
+	pub pos: Vector3,
+	pub normal: Vector3,
+	pub voxel: Voxel,
+	pub distance: f32,
+}
+
+impl RayResult {
+	pub fn hit(pos: Vector3, normal: Vector3, voxel: Voxel, distance: f32) -> Self {
+		Self {
+			hit: true,
+			pos,
+			normal,
+			voxel,
+			distance,
+		}
+	}
+
+	pub fn miss(pos: Vector3, distance: f32) -> Self {
+		Self {
+			hit: false,
+			pos,
+			normal: Vector3::ZERO,
+			voxel: EMPTY,
+			distance,
+		}
+	}
+}
+
+pub trait AxisToVector3 {
+	fn vec(&self) -> Vector3;
+}
+
+impl AxisToVector3 for Axis {
+	fn vec(&self) -> Vector3 {
+		match self {
+			Axis::X => Vector3::RIGHT,
+			Axis::Y => Vector3::UP,
+			Axis::Z => Vector3::BACK,
+		}
+	}
 }

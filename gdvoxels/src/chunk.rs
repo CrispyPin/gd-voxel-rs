@@ -32,6 +32,7 @@ pub struct Chunk {
 	mesh_index_offset: usize,
 	rng: Ref<RandomNumberGenerator, Unique>,
 	needs_remesh: bool,
+	location: Vector3,
 }
 
 
@@ -48,11 +49,13 @@ impl Chunk {
 			mesh_index_offset: 0,
 			rng: RandomNumberGenerator::new(),
 			needs_remesh: true,
+			location: Vector3::ZERO,
 		}
 	}
 
 	#[export]
 	fn _ready(&mut self, owner: &ChunkNodeType) {
+		self.location = owner.translation();
 		let mesh_instance = unsafe { 
 			owner.get_node_as::<MeshInstance>("ChunkMesh")
 			.unwrap()
@@ -76,29 +79,34 @@ impl Chunk {
 		}
 	}
 
-	/// cast a ray through the chunk, source is in world space coords
-	/// max_len of 0.0 is equivalent to infinity
-	pub fn cast_ray(&self, source: Vector3, direction: Vector3, max_len: f32) -> Option<Vector3>{
-		let max_len = if max_len == 0.0 { f32::INFINITY } else {max_len};
-		let direction = direction.normalized();
+	/// cast a ray through the chunk, source and output are in world space coords
+	pub fn cast_ray(&self, source: Vector3, dir: Vector3, max_len: f32) -> RayResult {
 		let source = local_pos(source);
 
-		let mut ray_len = 1.0;
+		let mut ray_len = 0.0;
 
+		// 
+		let stepped_dir = step(0.0, dir);
+		
 		while ray_len <= max_len {
-			let pos = source + direction * ray_len;
-			if !in_bounds(pos) {
-				// godot_print!("{:?} {:?} {:?}", pos, source, direction);
-				return None;
+			let ray_pos = source + dir * ray_len;
+			if !in_bounds(ray_pos) {
+				return RayResult::miss(ray_pos + self.location, ray_len);
 			}
-			if self.get_voxel_unsafe(pos) != EMPTY {
-				return Some(pos);
+			let voxel = self.get_voxel(ray_pos);
+			if  voxel != EMPTY {
+				let normal = calc_normal(ray_pos);
+				return RayResult::hit(ray_pos + self.location, normal, voxel, ray_len);
 			}
 
-			let deltas = (step(0.0, direction) - fract(pos)) / direction;
+			// distance "forward" along each axis to the next plane intersection
+			let dist_to_next_plane = stepped_dir - fract(ray_pos);
+			// distance along the ray to next plane intersection for each axis
+			let deltas = dist_to_next_plane / dir;
+			// move the smallest of these distances, so that no voxel is skipped
 			ray_len += mincomp(deltas).max(0.0001);
 		}
-		None
+		RayResult::miss(source + dir * max_len + self.location, max_len)
 	}
 
 	/// fast but suboptimal mesh
@@ -206,15 +214,6 @@ impl Chunk {
 		}
 	}
 
-	fn checkerboard(&mut self) {
-		for i in 0..VOLUME {
-			self.voxels[i] = ((i % 2 
-					+ (i / WIDTH % 2)
-					+ (i / AREA % 2))
-				 % 2) as Voxel;
-		}
-	}
-
 	fn generate(&mut self) {
 		self.voxels = [0; VOLUME];
 		// grid
@@ -234,6 +233,17 @@ impl Chunk {
 			self.set_voxel_unsafe(uvec3(WIDTH-1, i, 0), 1);
 			self.set_voxel_unsafe(uvec3(WIDTH-1, i, WIDTH-1), 1);
 		}
+
+		// 3d checkerboard
+		/*
+		for i in 0..VOLUME {
+			self.voxels[i] = ((i % 2 
+					+ (i / WIDTH % 2)
+					+ (i / AREA % 2))
+				 % 2) as Voxel;
+		}
+		*/
+
 		// torus
 		for i in 0..VOLUME {
 			let pos = index_to_pos(i) - ivec3(1,1,1) * 16.0 + Vector3::new(0.5, 0.5, 0.5);
@@ -262,7 +272,6 @@ impl Chunk {
 
 	pub fn set_voxel(&mut self, pos: Vector3, voxel: Voxel) {
 		if in_bounds(pos) {
-			// godot_print!("set voxel at {:?} \nto {} \nfrom {}", pos, voxel, self.get_voxel_unsafe(pos));
 			self.set_voxel_unsafe(pos, voxel);
 		}
 	}
@@ -300,19 +309,26 @@ fn index_to_pos(i: usize) -> Vector3 {
 
 #[inline]
 fn fract(v: Vector3) -> Vector3 {
-	Vector3 { x: v.x.fract(), y: v.y.fract(), z: v.z.fract()}
-}
-
-#[inline]
-fn step(edge: f32, v: Vector3) -> Vector3 {
-	Vector3 {
-		x: (v.x >= edge) as u8 as f32,
-		y: (v.y >= edge) as u8 as f32,
-		z: (v.z >= edge) as u8 as f32,
-	}
+	Vector3::new(v.x.fract(), v.y.fract(), v.z.fract())
 }
 
 #[inline]
 fn mincomp(v: Vector3) -> f32 {
 	v.x.min(v.y.min(v.z))
+}
+
+fn calc_normal(hit_pos: Vector3) -> Vector3 {
+	let pos_in_voxel = fract(hit_pos);
+	let centered = pos_in_voxel - Vector3::ONE*0.5;
+	let axis = centered.abs().max_axis();
+	axis.vec() * centered.sign()
+}
+
+
+fn step(e: f32, v: Vector3) -> Vector3 {
+	Vector3::new(
+		(v.x >= e) as u8 as f32, 
+		(v.y >= e) as u8 as f32, 
+		(v.z >= e) as u8 as f32,
+	)
 }

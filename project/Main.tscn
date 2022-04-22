@@ -1,8 +1,22 @@
-[gd_scene load_steps=4 format=2]
+[gd_scene load_steps=7 format=2]
 
 [ext_resource path="res://addons/voxel-engine/VoxelWorld.tscn" type="PackedScene" id=1]
 [ext_resource path="res://camera.gd" type="Script" id=2]
 [ext_resource path="res://interaction.gd" type="Script" id=3]
+
+[sub_resource type="SphereMesh" id=1]
+radius = 0.1
+height = 0.2
+
+[sub_resource type="SpatialMaterial" id=2]
+flags_transparent = true
+flags_unshaded = true
+flags_no_depth_test = true
+albedo_color = Color( 1, 0, 0, 0.521569 )
+
+[sub_resource type="SphereMesh" id=3]
+radius = 0.05
+height = 0.1
 
 [node name="Main" type="Node"]
 
@@ -10,7 +24,7 @@
 load_distance = 1
 
 [node name="Camera" type="Camera" parent="."]
-transform = Transform( -4.37114e-08, 0, -1, 0, 1, 0, 1, 0, -4.37114e-08, -16, 16, 16 )
+transform = Transform( -4.37114e-08, 0, -1, 0, 1, 0, 1, 0, -4.37114e-08, 0, 0, 0 )
 far = 1024.0
 script = ExtResource( 2 )
 speed = 32
@@ -23,3 +37,16 @@ script = ExtResource( 3 )
 transform = Transform( 1, 0, 0, 0, 0.77128, 0.636496, 0, -0.636496, 0.77128, 0, 3.56554, 0 )
 shadow_enabled = true
 directional_shadow_mode = 0
+
+[node name="DEBUG" type="MeshInstance" parent="."]
+mesh = SubResource( 1 )
+material/0 = SubResource( 2 )
+
+[node name="DEBUG2" type="MeshInstance" parent="."]
+mesh = SubResource( 3 )
+skeleton = NodePath("../DEBUG")
+material/0 = SubResource( 2 )
+
+[node name="DEBUGTEXT" type="Label" parent="."]
+margin_right = 40.0
+margin_bottom = 14.0

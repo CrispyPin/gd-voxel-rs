@@ -47,26 +47,45 @@ impl VoxelWorld {
 		// }
 	}
 
+	/// casts ray through world, counts as a miss if an unloaded chunk is entered
+	/// max_dist is clamped to 0.001..4096
 	#[export]
-	fn cast_ray(&mut self, _owner: &Node, source: Vector3, direction: Vector3) -> Vector3 {
-		let start_loc = chunk_loc(source);
-		if self.chunk_is_loaded(start_loc) {
-			let chunk = self.get_chunk(start_loc);
-			let hit =  chunk.map(
-				|chunk, _owner| -> Option<Vector3> {
-					chunk.cast_ray(local_pos(source), direction, 0.0)
-			}).unwrap();
-			
-			if let Some(pos) = hit {
-				return pos.floor() + start_loc*(WIDTH as f32);
+	fn cast_ray(&mut self, _owner: &Node, start_pos: Vector3, direction: Vector3, max_dist: f32) -> RayResult {
+		let max_dist = max_dist.clamp(0.001, 4096.0);
+		let direction = direction.normalized();
+		
+		let mut loc = chunk_loc(start_pos);
+		let mut ray_len = 0.0;
+		let mut ray_pos = start_pos;
+
+		let mut steps = 0;
+		while steps < 256 {
+			steps += 1;
+			if self.chunk_is_loaded(loc) {
+				let chunk = self.get_chunk_unsafe(loc);
+				let mut inner_ray =  chunk.map(
+					|chunk, _owner| -> RayResult {
+						chunk.cast_ray(local_pos(ray_pos), direction, max_dist - ray_len)
+				}).unwrap();
+				ray_len += inner_ray.distance;
+
+				if inner_ray.hit {
+					inner_ray.distance = ray_len;
+					return inner_ray;
+				}
+				loc = chunk_loc(inner_ray.pos);
+				ray_pos = inner_ray.pos;
+			}
+			else {
+				return RayResult::miss(start_pos + direction * max_dist, max_dist);
 			}
 		}
-		Vector3::ZERO
+		RayResult::miss(start_pos + direction * max_dist, max_dist)
 	}
 
 	#[export]
 	fn set_voxel(&mut self, _owner: &Node, pos: Vector3, voxel: Voxel) {
-		let chunk = self.get_chunk(chunk_loc(pos));
+		let chunk = self.get_chunk_unsafe(chunk_loc(pos));
 		chunk.map_mut(|chunk, _owner| {
 			chunk.set_voxel(local_pos(pos), voxel);
 		}).unwrap();
@@ -120,7 +139,14 @@ impl VoxelWorld {
 		self.chunks.contains_key(&key(loc))
 	}
 
-	fn get_chunk(&mut self, loc: Vector3) -> TInstance<Chunk> {
+	fn get_chunk(&mut self, loc: Vector3) -> Option<TInstance<Chunk>> {
+		if self.chunk_is_loaded(loc) {
+			return Some(self.get_chunk_unsafe(loc));
+		}
+		None
+	}
+
+	fn get_chunk_unsafe(&mut self, loc: Vector3) -> TInstance<Chunk> {
 		unsafe {
 			self.chunks.get(&key(loc))
 			.unwrap()
