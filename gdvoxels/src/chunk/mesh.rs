@@ -2,6 +2,7 @@ use gdnative::prelude::*;
 use gdnative::api::{ArrayMesh, Mesh};
 
 use crate::common::*;
+use crate::chunk::core::ChunkCore;
 
 pub const NORMALS: [Vector3; 6] = [
 	ivec3(1, 0, 0), ivec3(-1, 0, 0),
@@ -26,6 +27,7 @@ pub struct ChunkMesh {
 	indexes: Int32Array,
 	quad_count: usize,
 	quad_capacity: usize,
+	array_mesh: Ref<ArrayMesh, Shared>,
 }
 
 impl ChunkMesh {
@@ -37,16 +39,46 @@ impl ChunkMesh {
 			indexes: PoolArray::new(),
 			quad_count: 0,
 			quad_capacity: 0,
+			array_mesh: ArrayMesh::new().into_shared(),
 		}
 	}
 
+	pub fn array_mesh(&self) -> &Ref<ArrayMesh, Shared> {
+		&self.array_mesh
+	}
+
+	/// fast but suboptimal mesh
+	pub fn generate_simple(&mut self, core: &ChunkCore) {
+		// let start_time = Instant::now();
+		self.clear();
+		for index in 0..VOLUME {
+			if core.voxels[index] != EMPTY {
+				self.allocate_batch(6, 64);
+				let pos = index_to_pos(index);
+				for face in 0..6 {
+					let normal = NORMALS[face];
+					if core.get_voxel(pos + normal) == EMPTY {
+						let mut verts = [Vector3::ZERO; 4];
+						for i in 0..4 {
+							verts[i] = pos + FACE_VERTS[face][i];
+						}
+						self.add_quad(verts, face);
+					}
+				}
+			}
+		}
+		self.apply();
+		// let time_taken = start_time.elapsed().as_micros() as f64 / 1000.0;
+		// godot_print!("simple mesh took: {} ms", time_taken);
+	}
+
 	/// add a quad from 4 verts, in the order: [0, 1, 2, 2, 3, 0]
-	pub fn add_quad(&mut self, corners: [Vector3; 4], face: usize) {
+	fn add_quad(&mut self, corners: [Vector3; 4], face: usize) {
 		let mut vertex_w = self.vertexes.write();
 		let mut normal_w = self.normals.write();	
 		let mut index_w = self.indexes.write();
 	
-		// let color_w = self.mesh_color.write();
+		// let color_w = self.colors.write();
 		// let col = Color::from_rgb(rng.randf(), rng.randf(), rng.randf());
 	
 		for v in 0..4 {
@@ -68,28 +100,29 @@ impl ChunkMesh {
 		self.quad_count += 1;
 	}
 
-	/// allocate more space for `relative_capacity` more quads
-	fn resize_buffers(&mut self, relative_capacity: i32) {
-		let vert_count = self.vertexes.len() + relative_capacity * 4;
-		let index_count = self.indexes.len() + relative_capacity * 6;
+	/// allocate space for `relative_capacity` additional quads
+	fn resize_buffers(&mut self, amount: i32) {
+		let vert_count = self.vertexes.len() + amount * 4;
+		let index_count = self.indexes.len() + amount * 6;
 		
 		self.vertexes.resize(vert_count);
 		self.normals.resize(vert_count);
 		self.indexes.resize(index_count);
-		// mesh_color.resize(vert_count);
+		// self.colors.resize(vert_count);
 		self.uvs.resize(vert_count);
 
-		self.quad_capacity += relative_capacity as usize;
+		self.quad_capacity += amount as usize;
 	}
 
 	/// make sure at least `min` additional quads fit; if not, resize by `batch_size`
-	pub fn allocate_batch(&mut self, min: usize, batch_size: u32) {
+	fn allocate_batch(&mut self, min: usize, batch_size: u32) {
 		if self.quad_capacity < self.quad_count + min {
 			self.resize_buffers(batch_size as i32);
 		}
 	}
 
-	pub fn apply(&mut self, array_mesh: &Ref<ArrayMesh, Shared>) {
+	fn apply(&mut self) {
+		// remove unused
 		self.resize_buffers(self.quad_count as i32 - self.quad_capacity as i32);
 		
 		let mesh_data = VariantArray::new_thread_local();
@@ -99,23 +132,27 @@ impl ChunkMesh {
 		mesh_data.set(Mesh::ARRAY_INDEX as i32, &self.indexes);
 
 		mesh_data.set(Mesh::ARRAY_TEX_UV as i32, &self.uvs);
+		// mesh_data.set(Mesh::ARRAY_COLOR as i32, &self.colors);
 		
 		let mesh_data = unsafe { mesh_data.assume_unique().into_shared() };
-		let array_mesh = unsafe { array_mesh.assume_safe() };
+		let array_mesh = unsafe { self.array_mesh.assume_safe() };
 
 		if array_mesh.get_surface_count() > 0 {
 			array_mesh.surface_remove(0);
 		}
 
-		array_mesh.add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, mesh_data, VariantArray::new_shared(), 0);
+		if self.quad_count > 0 {
+			array_mesh.add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, mesh_data, VariantArray::new_shared(), 0);
+		}
 	}
 
-	pub fn clear(&mut self) {
+	fn clear(&mut self) {
 		self.quad_count = 0;
 		self.quad_capacity = 0;
 		self.vertexes.resize(0);
 		self.normals.resize(0);
 		self.indexes.resize(0);
 		self.uvs.resize(0);
+		// self.colors.resize(0);
 	}
 }

@@ -1,4 +1,4 @@
-use gdnative::{prelude::*, core_types::Axis};
+use gdnative::prelude::*;
 
 pub const WIDTH: usize = 32;
 pub const AREA: usize = WIDTH * WIDTH;
@@ -26,6 +26,30 @@ pub const fn ivec3(x: i32, y: i32, z: i32) -> Vector3 {
 /// [usize] to [Vector3]
 pub const fn uvec3(x: usize, y: usize, z: usize) -> Vector3 {
 	Vector3::new(x as f32, y as f32, z as f32)
+}
+
+#[inline]
+pub fn in_bounds(pos: Vector3) -> bool{
+	const WIDTH_F: f32 = WIDTH as f32;
+	pos.x >= 0.0 && pos.x < WIDTH_F &&
+	pos.y >= 0.0 && pos.y < WIDTH_F &&
+	pos.z >= 0.0 && pos.z < WIDTH_F
+}
+
+#[inline]
+pub fn pos_to_index(pos: Vector3) -> usize {
+	pos.x as usize * AREA
+	+ pos.y as usize * WIDTH
+	+ pos.z as usize
+}
+
+#[inline]
+pub fn index_to_pos(i: usize) -> Vector3 {
+	Vector3::new(
+		((i / AREA) as f32).floor(),
+		((i/WIDTH % WIDTH) as f32).floor(),
+		(i % WIDTH) as f32
+	)
 }
 
 #[derive(ToVariant)]
@@ -59,16 +83,3 @@ impl RayResult {
 	}
 }
 
-pub trait AxisToVector3 {
-	fn vec(&self) -> Vector3;
-}
-
-impl AxisToVector3 for Axis {
-	fn vec(&self) -> Vector3 {
-		match self {
-			Axis::X => Vector3::RIGHT,
-			Axis::Y => Vector3::UP,
-			Axis::Z => Vector3::BACK,
-		}
-	}
-}

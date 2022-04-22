@@ -85,11 +85,24 @@ impl VoxelWorld {
 
 	#[export]
 	fn set_voxel(&mut self, _owner: &Node, pos: Vector3, voxel: Voxel) {
-		let chunk = self.get_chunk_unsafe(chunk_loc(pos));
+		let loc = chunk_loc(pos);
+		self.load_or_generate(_owner, loc);
+		let chunk = self.get_chunk_unsafe(loc);
 		chunk.map_mut(|chunk, _owner| {
 			chunk.set_voxel(local_pos(pos), voxel);
 		}).unwrap();
+	}
 
+	#[export]
+	fn get_voxel(&mut self, _owner: &Node, pos: Vector3) -> Voxel{
+		let loc = chunk_loc(pos);
+		if !self.chunk_is_loaded(loc) {
+			return EMPTY;
+		}
+		let chunk = self.get_chunk_unsafe(chunk_loc(pos));
+		chunk.map_mut(|chunk, _owner| {
+			chunk.get_voxel(local_pos(pos))
+		}).unwrap()
 	}
 
 	/// load chunks around player pos
