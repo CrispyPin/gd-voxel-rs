@@ -23,11 +23,6 @@ pub const fn ivec3(x: i32, y: i32, z: i32) -> Vector3 {
 	Vector3::new(x as f32, y as f32, z as f32)
 }
 
-/// [usize] to [Vector3]
-pub const fn uvec3(x: usize, y: usize, z: usize) -> Vector3 {
-	Vector3::new(x as f32, y as f32, z as f32)
-}
-
 #[inline]
 pub fn in_bounds(pos: Vector3) -> bool{
 	const WIDTH_F: f32 = WIDTH as f32;
@@ -88,6 +83,7 @@ pub trait VoxelColour {
 }
 
 impl VoxelColour for Voxel {
+	#[inline]
 	fn color(&self) -> Color {
 		Color::from_hsv(*self as f32 / 256.0, 0.5, 1.0)
 	}

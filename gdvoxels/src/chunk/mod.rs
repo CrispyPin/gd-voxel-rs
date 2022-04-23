@@ -84,25 +84,6 @@ impl Chunk {
 		else {
 			self.core.voxels = [0; VOLUME];
 		}
-		// grid
-		/*
-		for i in 0..WIDTH {
-			self.core.set_voxel(uvec3(i, 0, 0), 1);
-			self.core.set_voxel(uvec3(i, 0, WIDTH-1), 1);
-			self.core.set_voxel(uvec3(i, WIDTH-1, 0), 1);
-			self.core.set_voxel(uvec3(i, WIDTH-1, WIDTH-1), 1);
-			
-			self.core.set_voxel(uvec3(0, 0, i), 1);
-			self.core.set_voxel(uvec3(0, WIDTH-1, i), 1);
-			self.core.set_voxel(uvec3(WIDTH-1, 0, i), 1);
-			self.core.set_voxel(uvec3(WIDTH-1, WIDTH-1, i), 1);
-
-			self.core.set_voxel(uvec3(0, i, 0), 1);
-			self.core.set_voxel(uvec3(0, i, WIDTH-1), 1);
-			self.core.set_voxel(uvec3(WIDTH-1, i, 0), 1);
-			self.core.set_voxel(uvec3(WIDTH-1, i, WIDTH-1), 1);
-		}*/
-
 		// torus
 		for i in 0..VOLUME {
 			let pos = index_to_pos(i) - ivec3(1,1,1) * 16.0 + Vector3::new(0.5, 0.5, 0.5);

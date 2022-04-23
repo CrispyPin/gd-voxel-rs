@@ -11,7 +11,7 @@ pub const NORMALS: [Vector3; 6] = [
 	ivec3(0, 1, 0), ivec3(0, -1, 0),
 	ivec3(0, 0, 1), ivec3(0, 0, -1)];
 
-pub const FACE_VERTS: [[Vector3; 4]; 6] = [
+const FACE_VERTS: [[Vector3; 4]; 6] = [
 	[ivec3(1, 0, 1), ivec3(1, 1, 1), ivec3(1, 1, 0), ivec3(1, 0, 0)],
 	[ivec3(0, 0, 0), ivec3(0, 1, 0), ivec3(0, 1, 1), ivec3(0, 0, 1)],
 	[ivec3(0, 1, 0), ivec3(1, 1, 0), ivec3(1, 1, 1), ivec3(0, 1, 1)],
@@ -60,24 +60,30 @@ impl ChunkMesh {
 			if voxel != EMPTY {
 				self.allocate_batch(6, 64);
 				let pos = index_to_pos(index);
-				for face in 0..6 {
-					let normal = NORMALS[face];
-					if core.get_voxel(pos + normal) == EMPTY {
-						let mut verts = [Vector3::ZERO; 4];
-						for i in 0..4 {
-							verts[i] = pos + FACE_VERTS[face][i];
-						}
-						self.add_quad(verts, face, voxel.color());
-					}
-				}
+				self.add_cube(pos, voxel, core);
 			}
 		}
 		self.apply();
 		let time_taken = start_time.elapsed().as_micros() as f64 / 1000.0;
-		godot_print!("simple mesh took: {} ms", time_taken);
+		// godot_print!("simple mesh took: {} ms", time_taken);
+	}
+
+	#[inline]
+	fn add_cube(&mut self, pos: Vector3, voxel: Voxel, core: &ChunkCore) {
+		for face in 0..6 {
+			let normal = NORMALS[face];
+			if core.get_voxel(pos + normal) == EMPTY {
+				let mut verts = [Vector3::ZERO; 4];
+				for i in 0..4 {
+					verts[i] = pos + FACE_VERTS[face][i];
+				}
+				self.add_quad(verts, face, voxel.color());
+			}
+		}
 	}
 	
 	/// add a quad from 4 verts, in the order: [0, 1, 2, 2, 3, 0]
+	#[inline]
 	fn add_quad(&mut self, corners: [Vector3; 4], face: usize, color: Color) {
 		let mut vertex_w = self.vertexes.write();
 		let mut normal_w = self.normals.write();	
@@ -103,7 +109,7 @@ impl ChunkMesh {
 		self.quad_count += 1;
 	}
 
-	/// allocate space for `relative_capacity` additional quads
+	/// allocate space for additional quads
 	fn resize_buffers(&mut self, amount: i32) {
 		let vert_count = self.vertexes.len() + amount * 4;
 		let index_count = self.indexes.len() + amount * 6;
@@ -118,6 +124,7 @@ impl ChunkMesh {
 	}
 
 	/// make sure at least `min` additional quads fit; if not, resize by `batch_size`
+	#[inline]
 	fn allocate_batch(&mut self, min: usize, batch_size: u32) {
 		if self.quad_capacity < self.quad_count + min {
 			self.resize_buffers(batch_size as i32);
