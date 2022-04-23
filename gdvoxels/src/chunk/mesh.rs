@@ -1,4 +1,4 @@
-use std::time::Instant;
+// use std::time::Instant;
 
 use gdnative::prelude::*;
 use gdnative::api::{ArrayMesh, Mesh};
@@ -53,7 +53,7 @@ impl ChunkMesh {
 	
 	/// fast but suboptimal mesh
 	pub fn generate_simple(&mut self, core: &ChunkCore) {
-		let start_time = Instant::now();
+		// let start_time = Instant::now();
 		self.clear();
 		for index in 0..VOLUME {
 			let voxel = core.voxels[index];

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use gdnative::core_types::Axis;
 use gdnative::prelude::*;
 
 use crate::common::*;
@@ -37,6 +38,12 @@ impl VoxelWorld {
 	#[export]
 	fn _ready(&mut self, owner: &Node) {
 		self.load_near(owner);
+		godot_print!("{:?}", self.get_voxel(owner, Vector3::new(-2.0, 0.0, 0.0)));
+		godot_print!("{:?}", self.get_voxel(owner, Vector3::new(-1.0, 0.0, 0.0)));
+		// godot_print!("{:?}", self.get_voxel(owner, Vector3::new(-0.5, 0.0, 0.0)));
+		godot_print!("{:?}", self.get_voxel(owner, Vector3::new(0.0, 0.0, 0.0)));
+		// godot_print!("{:?}", self.get_voxel(owner, Vector3::new(0.5, 0.0, 0.0)));
+		godot_print!("{:?}", self.get_voxel(owner, Vector3::new(1.0, 0.0, 0.0)));
 	}
 
 	#[export]
@@ -47,40 +54,32 @@ impl VoxelWorld {
 		// }
 	}
 
-	/// casts ray through world, counts as a miss if an unloaded chunk is entered
-	/// max_dist is clamped to 0.001..4096
+	/// casts ray through world, sees unloaded chunks as empty
+	/// max_len is clamped to 0.001..65536.0
 	#[export]
-	fn cast_ray(&mut self, _owner: &Node, start_pos: Vector3, direction: Vector3, max_dist: f32) -> RayResult {
-		let max_dist = max_dist.clamp(0.001, 4096.0);
-		let direction = direction.normalized();
-		
-		let mut loc = chunk_loc(start_pos);
+	fn cast_ray(&mut self, owner: &Node, source: Vector3, dir: Vector3, max_len: f32) -> RayResult {
+		let dir = dir.normalized();
+		let max_len = max_len.clamp(0.001, 65536.0);
+		let stepped_dir = step(0.0, dir);
 		let mut ray_len = 0.0;
-		let mut ray_pos = start_pos;
-
-		let mut steps = 0;
-		while steps < 256 {
-			steps += 1;
-			if self.chunk_is_loaded(loc) {
-				let chunk = self.get_chunk_unsafe(loc);
-				let mut inner_ray =  chunk.map(
-					|chunk, _owner| -> RayResult {
-						chunk.cast_ray(local_pos(ray_pos), direction, max_dist - ray_len)
-				}).unwrap();
-				ray_len += inner_ray.distance;
-
-				if inner_ray.hit {
-					inner_ray.distance = ray_len;
-					return inner_ray;
-				}
-				loc = chunk_loc(inner_ray.pos);
-				ray_pos = inner_ray.pos;
+		
+		while ray_len <= max_len {
+			let ray_pos = source + dir * ray_len;
+			let voxel = self.get_voxel(owner, ray_pos);
+			if voxel != EMPTY {
+				let normal = calc_normal(ray_pos);
+				return RayResult::hit(ray_pos-dir*0.01, normal, voxel, ray_len);
 			}
-			else {
-				return RayResult::miss(start_pos + direction * max_dist, max_dist);
-			}
+			
+			let pos_in_voxel = fract(fract(ray_pos) + Vector3::ONE);
+			// distance "forward" along each axis to the next plane intersection
+			let dist_to_next_plane = stepped_dir - pos_in_voxel;
+			// distance along the ray to next plane intersection for each axis
+			let deltas = dist_to_next_plane / dir;
+			// move the smallest of these distances, so that no voxel is skipped
+			ray_len += mincomp(deltas).max(0.0001);
 		}
-		RayResult::miss(start_pos + direction * max_dist, max_dist)
+		RayResult::miss(source + dir * max_len, max_len)
 	}
 
 	#[export]
@@ -173,5 +172,45 @@ impl VoxelWorld {
 /// convert Vector3 to i32 tuple to use as a key in chunk array
 #[inline]
 fn key(loc: Vector3) -> (i32, i32, i32) {
+	let loc = loc.floor();
 	(loc.x as i32, loc.y as i32, loc.z as i32)
+}
+
+#[inline]
+fn fract(v: Vector3) -> Vector3 {
+	Vector3::new(v.x.fract(), v.y.fract(), v.z.fract())
+}
+
+#[inline]
+fn mincomp(v: Vector3) -> f32 {
+	v.x.min(v.y.min(v.z))
+}
+
+fn calc_normal(hit_pos: Vector3) -> Vector3 {
+	let pos_in_voxel = fract(fract(hit_pos)+Vector3::ONE);
+	let centered = pos_in_voxel - Vector3::ONE*0.5;
+	let axis = centered.abs().max_axis();
+	axis.vec() * centered.sign()
+}
+
+fn step(e: f32, v: Vector3) -> Vector3 {
+	Vector3::new(
+		(v.x >= e) as u8 as f32, 
+		(v.y >= e) as u8 as f32, 
+		(v.z >= e) as u8 as f32,
+	)
+}
+
+pub trait AxisToVector3 {
+	fn vec(&self) -> Vector3;
+}
+
+impl AxisToVector3 for Axis {
+	fn vec(&self) -> Vector3 {
+		match self {
+			Axis::X => Vector3::RIGHT,
+			Axis::Y => Vector3::UP,
+			Axis::Z => Vector3::BACK,
+		}
+	}
 }

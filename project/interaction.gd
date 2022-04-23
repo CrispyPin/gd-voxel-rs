@@ -9,19 +9,16 @@ var vtype := 1
 
 func _ready():
 	world.set_voxel(Vector3(3,3,3), 1)
-	pass
 
 
 func _process(_delta):
 	world.player_pos = player.translation
 	debugtext.text = str(Engine.get_frames_per_second())
 	debugtext.text += "\n" + str(forward())
+	debugtext.text += "\n" + str(player.translation.floor())
 	debugtext.text += "\n" + str(vtype)
 
-
-	var result = world.cast_ray(player.translation, forward(), 12.0)
-	indicator.translation = (result.pos + result.normal*0.5).floor()
-	indicator.visible = result.hit
+	var result = raycast()
 
 	if Input.is_action_just_pressed("place"):
 		if result.hit:
@@ -36,6 +33,13 @@ func _process(_delta):
 		vtype = ((vtype + 255) % 255) + 1
 	if Input.is_action_just_released("prev_item"):
 		vtype = ((vtype-2 + 255) % 255)+1
+
+
+func raycast():
+	var result = world.cast_ray(player.translation, forward(), 12.0)
+	indicator.translation = (result.pos + result.normal*0.5).floor()
+	indicator.visible = result.hit
+	return result
 
 
 func forward():

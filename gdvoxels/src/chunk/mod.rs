@@ -60,14 +60,6 @@ impl Chunk {
 		}
 	}
 
-	/// cast a ray through the chunk, source and output are in world space coords
-	pub fn cast_ray(&self, source: Vector3, dir: Vector3, max_len: f32) -> RayResult {
-		let source = local_pos(source);
-		let mut result = self.core.cast_ray(source, dir, max_len);
-		result.pos += self.location;
-		result
-	}
-
 	fn randomise(&mut self, amount: f64) {
 		self.core.voxels = [0; VOLUME];
 		for i in 0..VOLUME {

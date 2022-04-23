@@ -4,18 +4,19 @@ pub const WIDTH: usize = 32;
 pub const AREA: usize = WIDTH * WIDTH;
 pub const VOLUME: usize = AREA * WIDTH;
 
-pub type Voxel = u8;
+pub const WIDTH_F: f32 = WIDTH as f32;
 
+pub type Voxel = u8;
 pub const EMPTY: Voxel = 0;
 
 /// convert world coordinate to a chunk location
 pub fn chunk_loc(world_pos: Vector3) -> Vector3 {
-	(world_pos / WIDTH as f32).floor()
+	(world_pos / WIDTH_F).floor()
 }
 
 /// convert world coordinate to a position within the chunk
 pub fn local_pos(world_pos: Vector3) -> Vector3 {
-	world_pos.posmod(WIDTH as f32)
+	world_pos.floor().posmod(WIDTH_F)
 }
 
 /// [i32] to [Vector3]
@@ -25,7 +26,6 @@ pub const fn ivec3(x: i32, y: i32, z: i32) -> Vector3 {
 
 #[inline]
 pub fn in_bounds(pos: Vector3) -> bool{
-	const WIDTH_F: f32 = WIDTH as f32;
 	pos.x >= 0.0 && pos.x < WIDTH_F &&
 	pos.y >= 0.0 && pos.y < WIDTH_F &&
 	pos.z >= 0.0 && pos.z < WIDTH_F
