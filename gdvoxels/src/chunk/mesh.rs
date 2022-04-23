@@ -1,5 +1,4 @@
 // use std::time::Instant;
-
 use gdnative::prelude::*;
 use gdnative::api::{ArrayMesh, Mesh};
 
@@ -63,10 +62,12 @@ impl ChunkMesh {
 				self.add_cube(pos, voxel, core);
 			}
 		}
+		// let time_taken = start_time.elapsed().as_micros() as f64 / 1000.0;
+		// godot_print!("simple mesh took: {} ms", time_taken);
 		self.apply();
 		// if self.quad_count > 0 {
-		// 	let time_taken = start_time.elapsed().as_micros() as f64 / 1000.0;
-		// 	godot_print!("simple mesh took: {} ms", time_taken);
+		// let time_taken = start_time.elapsed().as_micros() as f64 / 1000.0;
+		// godot_print!("applying took: {} ms", time_taken);
 		// }
 	}
 

@@ -1,5 +1,4 @@
 use gdnative::prelude::*;
-
 use crate::common::*;
 
 pub struct ChunkCore {

@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 use gdnative::api::MeshInstance;
-use gdnative::core_types::Axis;
 use gdnative::prelude::*;
 
 use crate::common::*;
 use crate::chunk::*;
 
-const CHUNK_FP: &str = "res://addons/voxel-engine/Chunk.tscn";
+const CHUNK_PATH: &str = "res://addons/voxel-engine/Chunk.tscn";
 
 #[derive(NativeClass)]
 #[inherit(Node)]
@@ -23,7 +22,7 @@ pub struct VoxelWorld {
 impl VoxelWorld {
 	fn new(_owner: &Node) -> Self {
 		let chunk_resource = ResourceLoader::godot_singleton()
-			.load(CHUNK_FP, "PackedScene", false)
+			.load(CHUNK_PATH, "PackedScene", false)
 			.unwrap()
 			.cast::<PackedScene>()
 			.unwrap();
@@ -128,24 +127,23 @@ impl VoxelWorld {
 	}
 
 	fn create_chunk(&mut self, owner: &Node, loc: Vector3) {
-		let new_chunk = Chunk::new(loc * WIDTH_F);
 		let mesh = unsafe {
 			self.chunk_resource
-				.assume_safe()
-				.instance(0)
-				.unwrap()
-				.assume_safe()
-				.cast::<MeshInstance>()
-				.unwrap()
+			.assume_safe()
+			.instance(0)
+			.unwrap()
+			.assume_safe()
+			.cast::<MeshInstance>()
+			.unwrap()
 		};
+		let new_chunk = Chunk::new(loc * WIDTH_F);
+
 		mesh.set_mesh(new_chunk.mesh.array_mesh());
-		
-		mesh.set_name(format!("Chunk{:?}", key(loc)));
 		mesh.set_translation(loc * WIDTH_F);
-
-		self.chunks.insert(key(loc), new_chunk);
-
+		mesh.set_name(format!("Chunk{:?}", key(loc)));
 		owner.add_child(mesh, false);
+		
+		self.chunks.insert(key(loc), new_chunk);
 	}
 
 	fn chunk_is_loaded(&self, loc: Vector3) -> bool {
@@ -187,18 +185,4 @@ fn step(e: f32, v: Vector3) -> Vector3 {
 		(v.y >= e) as u8 as f32, 
 		(v.z >= e) as u8 as f32,
 	)
-}
-
-pub trait AxisToVector3 {
-	fn vec(&self) -> Vector3;
-}
-
-impl AxisToVector3 for Axis {
-	fn vec(&self) -> Vector3 {
-		match self {
-			Axis::X => Vector3::RIGHT,
-			Axis::Y => Vector3::UP,
-			Axis::Z => Vector3::BACK,
-		}
-	}
 }

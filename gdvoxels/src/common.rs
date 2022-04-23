@@ -1,4 +1,4 @@
-use gdnative::prelude::*;
+use gdnative::{prelude::*, core_types::Axis};
 
 pub const WIDTH: usize = 32;
 pub const AREA: usize = WIDTH * WIDTH;
@@ -91,5 +91,20 @@ impl VoxelColour for Voxel {
 		let x = x as f32 / 16.0;
 		let y = y as f32 / 16.0;
 		Color::from_rgb(x, y, 0.0)
+	}
+}
+
+
+pub trait AxisToVector3 {
+	fn vec(&self) -> Vector3;
+}
+
+impl AxisToVector3 for Axis {
+	fn vec(&self) -> Vector3 {
+		match self {
+			Axis::X => Vector3::RIGHT,
+			Axis::Y => Vector3::UP,
+			Axis::Z => Vector3::BACK,
+		}
 	}
 }
