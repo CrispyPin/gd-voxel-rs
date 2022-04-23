@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use gdnative::api::MeshInstance;
 use gdnative::core_types::Axis;
 use gdnative::prelude::*;
 
@@ -14,7 +15,7 @@ pub struct VoxelWorld {
 	load_distance: u16,
 	#[property]
 	player_pos: Vector3,
-	chunks: HashMap<(i32, i32, i32), Ref<ChunkNodeType, Shared>>,
+	chunks: HashMap<(i32, i32, i32), Chunk>,
 	chunk_resource: Ref<PackedScene>,
 }
 
@@ -38,12 +39,6 @@ impl VoxelWorld {
 	#[export]
 	fn _ready(&mut self, owner: &Node) {
 		self.load_near(owner);
-		godot_print!("{:?}", self.get_voxel(owner, Vector3::new(-2.0, 0.0, 0.0)));
-		godot_print!("{:?}", self.get_voxel(owner, Vector3::new(-1.0, 0.0, 0.0)));
-		// godot_print!("{:?}", self.get_voxel(owner, Vector3::new(-0.5, 0.0, 0.0)));
-		godot_print!("{:?}", self.get_voxel(owner, Vector3::new(0.0, 0.0, 0.0)));
-		// godot_print!("{:?}", self.get_voxel(owner, Vector3::new(0.5, 0.0, 0.0)));
-		godot_print!("{:?}", self.get_voxel(owner, Vector3::new(1.0, 0.0, 0.0)));
 	}
 
 	#[export]
@@ -52,6 +47,12 @@ impl VoxelWorld {
 		// if input.is_action_just_pressed("f2", false) {
 			self.load_near(owner);
 		// }
+		for chunk in self.chunks.values_mut() {
+			if chunk.needs_remesh {
+				chunk.mesh.generate_simple(&chunk.core);
+				chunk.needs_remesh = false;
+			}
+		}
 	}
 
 	/// casts ray through world, sees unloaded chunks as empty
@@ -86,22 +87,20 @@ impl VoxelWorld {
 	fn set_voxel(&mut self, _owner: &Node, pos: Vector3, voxel: Voxel) {
 		let loc = chunk_loc(pos);
 		self.load_or_generate(_owner, loc);
-		let chunk = self.get_chunk_unsafe(loc);
-		chunk.map_mut(|chunk, _owner| {
+		if let Some(chunk) = self.get_chunk(loc) {
 			chunk.set_voxel(local_pos(pos), voxel);
-		}).unwrap();
+		}
 	}
 
 	#[export]
 	fn get_voxel(&mut self, _owner: &Node, pos: Vector3) -> Voxel{
 		let loc = chunk_loc(pos);
-		if !self.chunk_is_loaded(loc) {
-			return EMPTY;
-		}
-		let chunk = self.get_chunk_unsafe(chunk_loc(pos));
-		chunk.map_mut(|chunk, _owner| {
+		if let Some(chunk) = self.get_chunk(loc) {
 			chunk.get_voxel(local_pos(pos))
-		}).unwrap()
+		}
+		else {
+			EMPTY
+		}
 	}
 
 	/// load chunks around player pos
@@ -129,43 +128,32 @@ impl VoxelWorld {
 	}
 
 	fn create_chunk(&mut self, owner: &Node, loc: Vector3) {
-		let new_chunk = unsafe {
+		let new_chunk = Chunk::new(loc * WIDTH_F);
+		let mesh = unsafe {
 			self.chunk_resource
 				.assume_safe()
 				.instance(0)
 				.unwrap()
 				.assume_safe()
-				.cast::<ChunkNodeType>()
+				.cast::<MeshInstance>()
 				.unwrap()
 		};
-		new_chunk.set_name(format!("Chunk{:?}", key(loc)));
-		new_chunk.set_translation(loc * WIDTH as f32);
+		mesh.set_mesh(new_chunk.mesh.array_mesh());
+		
+		mesh.set_name(format!("Chunk{:?}", key(loc)));
+		mesh.set_translation(loc * WIDTH_F);
 
-		let chunk_ref = unsafe { new_chunk.assume_shared() };
-		self.chunks.insert(key(loc), chunk_ref);
+		self.chunks.insert(key(loc), new_chunk);
 
-		owner.add_child(new_chunk, false);
+		owner.add_child(mesh, false);
 	}
 
 	fn chunk_is_loaded(&self, loc: Vector3) -> bool {
 		self.chunks.contains_key(&key(loc))
 	}
 
-	fn get_chunk(&mut self, loc: Vector3) -> Option<TInstance<Chunk>> {
-		if self.chunk_is_loaded(loc) {
-			return Some(self.get_chunk_unsafe(loc));
-		}
-		None
-	}
-
-	fn get_chunk_unsafe(&mut self, loc: Vector3) -> TInstance<Chunk> {
-		unsafe {
-			self.chunks.get(&key(loc))
-			.unwrap()
-			.assume_safe()
-			.cast_instance::<Chunk>()
-			.unwrap()
-		}
+	fn get_chunk(&mut self, loc: Vector3) -> Option<&mut Chunk> {
+		self.chunks.get_mut(&key(loc))
 	}
 }
 

@@ -1,10 +1,6 @@
-[gd_scene load_steps=3 format=2]
+[gd_scene load_steps=2 format=2]
 
-[ext_resource path="res://addons/voxel-engine/chunk.gdns" type="Script" id=1]
 [ext_resource path="res://addons/voxel-engine/materials/chunk.material" type="Material" id=2]
 
-[node name="Chunk" type="Spatial"]
-script = ExtResource( 1 )
-
-[node name="ChunkMesh" type="MeshInstance" parent="."]
+[node name="Chunk" type="MeshInstance"]
 material_override = ExtResource( 2 )

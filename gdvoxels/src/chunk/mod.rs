@@ -1,5 +1,4 @@
 use gdnative::prelude::*;
-use gdnative::api::{MeshInstance, RandomNumberGenerator};
 
 mod mesh;
 mod core;
@@ -8,68 +7,27 @@ use crate::common::*;
 use self::mesh::*;
 use self::core::*;
 
-pub type ChunkNodeType = Spatial;
-
-
-#[derive(NativeClass)]
-#[inherit(ChunkNodeType)]
 pub struct Chunk {
-	core: ChunkCore,
-	mesh: ChunkMesh,
-	rng: Ref<RandomNumberGenerator, Unique>,
-	needs_remesh: bool,
+	pub core: ChunkCore,
+	pub mesh: ChunkMesh,
+	pub needs_remesh: bool,
 	location: Vector3,
 }
 
 
-#[methods]
 impl Chunk {
-	pub fn new(_owner: &ChunkNodeType) -> Self {
-		Self {
+	pub fn new(location: Vector3) -> Self {
+		let mut instance = Self {
 			core: ChunkCore::new(),
 			mesh: ChunkMesh::new(),
-			rng: RandomNumberGenerator::new(),
 			needs_remesh: true,
-			location: Vector3::ZERO,
-		}
-	}
-
-	#[export]
-	fn _ready(&mut self, owner: &ChunkNodeType) {
-		self.location = owner.translation();
-		let mesh_instance = unsafe { 
-			owner.get_node_as::<MeshInstance>("ChunkMesh")
-			.unwrap()
+			location,
 		};
-		mesh_instance.set_mesh(self.mesh.array_mesh());
-		self.generate();
+		instance.generate();
+		instance
 	}
 
-	#[export]
-	fn _process(&mut self, _owner: &ChunkNodeType, _delta: f32) {
-		let input = Input::godot_singleton();
-		if input.is_action_just_pressed("f3", false) {
-			self.mesh.generate_simple(&self.core);
-		}
-		if input.is_action_just_pressed("f4", false) {
-			self.randomise(0.2);
-		}
-		if self.needs_remesh {
-			self.mesh.generate_simple(&self.core);
-			self.needs_remesh = false;
-		}
-	}
-
-	fn randomise(&mut self, amount: f64) {
-		self.core.voxels = [0; VOLUME];
-		for i in 0..VOLUME {
-			if self.rng.randf() < amount {
-				self.core.voxels[i] = 1;
-			}
-		}
-	}
-
-	fn generate(&mut self) {
+	pub fn generate(&mut self) {
 		if self.location.y < 0.0 {
 			self.core.voxels = [3; VOLUME];
 		}
