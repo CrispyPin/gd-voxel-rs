@@ -83,3 +83,12 @@ impl RayResult {
 	}
 }
 
+pub trait VoxelColour {
+	fn color(&self) -> Color;
+}
+
+impl VoxelColour for Voxel {
+	fn color(&self) -> Color {
+		Color::from_hsv(*self as f32 / 256.0, 0.5, 1.0)
+	}
+}

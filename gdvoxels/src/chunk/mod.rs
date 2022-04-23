@@ -1,10 +1,11 @@
 use gdnative::prelude::*;
 use gdnative::api::{MeshInstance, RandomNumberGenerator};
 
-use crate::common::*;
 mod mesh;
 mod core;
-use mesh::*;
+
+use crate::common::*;
+use self::mesh::*;
 use self::core::*;
 
 pub type ChunkNodeType = Spatial;
@@ -77,8 +78,14 @@ impl Chunk {
 	}
 
 	fn generate(&mut self) {
-		self.core.voxels = [0; VOLUME];
+		if self.location.y < 0.0 {
+			self.core.voxels = [64; VOLUME];
+		}
+		else {
+			self.core.voxels = [0; VOLUME];
+		}
 		// grid
+		/*
 		for i in 0..WIDTH {
 			self.core.set_voxel(uvec3(i, 0, 0), 1);
 			self.core.set_voxel(uvec3(i, 0, WIDTH-1), 1);
@@ -94,25 +101,25 @@ impl Chunk {
 			self.core.set_voxel(uvec3(0, i, WIDTH-1), 1);
 			self.core.set_voxel(uvec3(WIDTH-1, i, 0), 1);
 			self.core.set_voxel(uvec3(WIDTH-1, i, WIDTH-1), 1);
+		}*/
+
+		// torus
+		for i in 0..VOLUME {
+			let pos = index_to_pos(i) - ivec3(1,1,1) * 16.0 + Vector3::new(0.5, 0.5, 0.5);
+			if torus(8.0, 3.0, pos.x, pos.y, pos.z) {
+				self.core.voxels[i] = self.rng.randi_range(1, 255) as u8;
+			}
 		}
 
 		// 3d checkerboard
 		/*
 		for i in 0..VOLUME {
-			self.voxels[i] = ((i % 2 
+			self.core.voxels[i] = ((i % 2 
 					+ (i / WIDTH % 2)
 					+ (i / AREA % 2))
 				 % 2) as Voxel;
 		}
-		*/
-
-		// torus
-		for i in 0..VOLUME {
-			let pos = index_to_pos(i) - ivec3(1,1,1) * 16.0 + Vector3::new(0.5, 0.5, 0.5);
-			if torus(10.0, 5.0, pos.x, pos.y, pos.z) {
-				self.core.voxels[i] = 1;
-			}
-		}
+		// */
 
 		fn torus(major: f32, minor: f32, x: f32, y: f32, z: f32) -> bool {
 			let q = Vector2::new(Vector2::new(x, z).length() - major, y);

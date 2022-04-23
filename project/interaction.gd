@@ -7,6 +7,7 @@ onready var debug = $"../../DEBUG"
 onready var debug2 = $"../../DEBUG2"
 onready var debugtext = $"../../DEBUGTEXT"
 var update_debug := true
+var vtype := 1
 
 func _ready():
 	world.set_voxel(Vector3(3,3,3), 1)
@@ -23,7 +24,8 @@ func _process(_delta):
 		debug2.translation = result.pos + result.normal*0.4
 	if Input.is_action_pressed("place"):
 		if result.hit:
-			world.set_voxel(result.pos + result.normal*0.5, 1)
+			world.set_voxel(result.pos + result.normal*0.5, vtype)
+			vtype = (vtype % 255) + 1
 
 	if Input.is_action_pressed("break"):
 #		var result = world.cast_ray(player.translation, forward())

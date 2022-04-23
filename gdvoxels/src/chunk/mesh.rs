@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use gdnative::prelude::*;
 use gdnative::api::{ArrayMesh, Mesh};
 
@@ -23,6 +25,7 @@ const QUAD_OFFSETS: [usize; 6] = [0, 1, 2, 2, 3, 0];
 pub struct ChunkMesh {
 	vertexes: PoolArray<Vector3>,
 	normals: PoolArray<Vector3>,
+	colors: PoolArray<Color>,
 	uvs: PoolArray<Vector2>,
 	indexes: Int32Array,
 	quad_count: usize,
@@ -37,6 +40,7 @@ impl ChunkMesh {
 			normals: PoolArray::new(),
 			uvs: PoolArray::new(),
 			indexes: PoolArray::new(),
+			colors: PoolArray::new(),
 			quad_count: 0,
 			quad_capacity: 0,
 			array_mesh: ArrayMesh::new().into_shared(),
@@ -46,13 +50,14 @@ impl ChunkMesh {
 	pub fn array_mesh(&self) -> &Ref<ArrayMesh, Shared> {
 		&self.array_mesh
 	}
-
+	
 	/// fast but suboptimal mesh
 	pub fn generate_simple(&mut self, core: &ChunkCore) {
-		// let start_time = Instant::now();
+		let start_time = Instant::now();
 		self.clear();
 		for index in 0..VOLUME {
-			if core.voxels[index] != EMPTY {
+			let voxel = core.voxels[index];
+			if voxel != EMPTY {
 				self.allocate_batch(6, 64);
 				let pos = index_to_pos(index);
 				for face in 0..6 {
@@ -62,36 +67,34 @@ impl ChunkMesh {
 						for i in 0..4 {
 							verts[i] = pos + FACE_VERTS[face][i];
 						}
-						self.add_quad(verts, face);
+						self.add_quad(verts, face, voxel.color());
 					}
 				}
 			}
 		}
 		self.apply();
-		// let time_taken = start_time.elapsed().as_micros() as f64 / 1000.0;
-		// godot_print!("simple mesh took: {} ms", time_taken);
+		let time_taken = start_time.elapsed().as_micros() as f64 / 1000.0;
+		godot_print!("simple mesh took: {} ms", time_taken);
 	}
-
+	
 	/// add a quad from 4 verts, in the order: [0, 1, 2, 2, 3, 0]
-	fn add_quad(&mut self, corners: [Vector3; 4], face: usize) {
+	fn add_quad(&mut self, corners: [Vector3; 4], face: usize, color: Color) {
 		let mut vertex_w = self.vertexes.write();
 		let mut normal_w = self.normals.write();	
 		let mut index_w = self.indexes.write();
-	
-		// let color_w = self.colors.write();
-		// let col = Color::from_rgb(rng.randf(), rng.randf(), rng.randf());
+		let mut uv_w = self.uvs.write();
+		let mut color_w = self.colors.write();
 	
 		for v in 0..4 {
 			vertex_w[self.quad_count * 4 + v] = corners[v];
 			normal_w[self.quad_count * 4 + v] = NORMALS[face];
-			// color_w[mesh_index_offset * 4 + v] = col;
+			color_w[self.quad_count * 4 + v] = color;
 		}
 
 		for i in 0..6 {
 			index_w[self.quad_count * 6 + i] = (self.quad_count * 4 + QUAD_OFFSETS[i]) as i32;
 		}
 
-		let mut uv_w = self.uvs.write();
 		uv_w[self.quad_count * 4] = Vector2::new(0.0, 1.0);
 		uv_w[self.quad_count * 4+1] = Vector2::new(0.0, 0.0);
 		uv_w[self.quad_count * 4+2] = Vector2::new(1.0, 0.0);
@@ -108,10 +111,10 @@ impl ChunkMesh {
 		self.vertexes.resize(vert_count);
 		self.normals.resize(vert_count);
 		self.indexes.resize(index_count);
-		// self.colors.resize(vert_count);
+		self.colors.resize(vert_count);
 		self.uvs.resize(vert_count);
 
-		self.quad_capacity += amount as usize;
+		self.quad_capacity = (self.quad_capacity as i32 + amount) as usize;
 	}
 
 	/// make sure at least `min` additional quads fit; if not, resize by `batch_size`
@@ -132,7 +135,7 @@ impl ChunkMesh {
 		mesh_data.set(Mesh::ARRAY_INDEX as i32, &self.indexes);
 
 		mesh_data.set(Mesh::ARRAY_TEX_UV as i32, &self.uvs);
-		// mesh_data.set(Mesh::ARRAY_COLOR as i32, &self.colors);
+		mesh_data.set(Mesh::ARRAY_COLOR as i32, &self.colors);
 		
 		let mesh_data = unsafe { mesh_data.assume_unique().into_shared() };
 		let array_mesh = unsafe { self.array_mesh.assume_safe() };
@@ -153,6 +156,6 @@ impl ChunkMesh {
 		self.normals.resize(0);
 		self.indexes.resize(0);
 		self.uvs.resize(0);
-		// self.colors.resize(0);
+		self.colors.resize(0);
 	}
 }
