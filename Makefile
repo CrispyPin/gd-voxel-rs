@@ -1,25 +1,10 @@
-#!/bin/bash
-
-build_dev () {
-	cd gdvoxels
-	cargo build
-	cd ..
+default:
+	cd gdvoxels && cargo build
 	ln -sf ../../../../../gdvoxels/target/debug/libgdvoxels.so project/addons/voxel-engine/bin/linux/libgdvoxels.so
-}
 
+r: release
 
-build_release () {
-	cd gdvoxels
-	cargo build --release
-	cd ..
+release:
+	cd gdvoxels && cargo build --release
 	ln -sf ../../../../../gdvoxels/target/release/libgdvoxels.so project/addons/voxel-engine/bin/linux/libgdvoxels.so
-}
 
-case $1 in
-    r|release)
-        build_release
-        ;;
-    *)
-        build_dev
-        ;;
-esac
