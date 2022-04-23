@@ -26,7 +26,7 @@ pub struct ChunkMesh {
 	vertexes: PoolArray<Vector3>,
 	normals: PoolArray<Vector3>,
 	colors: PoolArray<Color>,
-	uvs: PoolArray<Vector2>,
+	// uvs: PoolArray<Vector2>,
 	indexes: Int32Array,
 	quad_count: usize,
 	quad_capacity: usize,
@@ -38,7 +38,7 @@ impl ChunkMesh {
 		Self {
 			vertexes: PoolArray::new(),
 			normals: PoolArray::new(),
-			uvs: PoolArray::new(),
+			// uvs: PoolArray::new(),
 			indexes: PoolArray::new(),
 			colors: PoolArray::new(),
 			quad_count: 0,
@@ -65,7 +65,7 @@ impl ChunkMesh {
 		}
 		self.apply();
 		let time_taken = start_time.elapsed().as_micros() as f64 / 1000.0;
-		// godot_print!("simple mesh took: {} ms", time_taken);
+		godot_print!("simple mesh took: {} ms", time_taken);
 	}
 
 	#[inline]
@@ -88,7 +88,7 @@ impl ChunkMesh {
 		let mut vertex_w = self.vertexes.write();
 		let mut normal_w = self.normals.write();	
 		let mut index_w = self.indexes.write();
-		let mut uv_w = self.uvs.write();
+		// let mut uv_w = self.uvs.write();
 		let mut color_w = self.colors.write();
 	
 		for v in 0..4 {
@@ -101,10 +101,10 @@ impl ChunkMesh {
 			index_w[self.quad_count * 6 + i] = (self.quad_count * 4 + QUAD_OFFSETS[i]) as i32;
 		}
 
-		uv_w[self.quad_count * 4] = Vector2::new(0.0, 1.0);
-		uv_w[self.quad_count * 4+1] = Vector2::new(0.0, 0.0);
-		uv_w[self.quad_count * 4+2] = Vector2::new(1.0, 0.0);
-		uv_w[self.quad_count * 4+3] = Vector2::new(1.0, 1.0);
+		// uv_w[self.quad_count * 4] = Vector2::new(0.0, 1.0);
+		// uv_w[self.quad_count * 4+1] = Vector2::new(0.0, 0.0);
+		// uv_w[self.quad_count * 4+2] = Vector2::new(1.0, 0.0);
+		// uv_w[self.quad_count * 4+3] = Vector2::new(1.0, 1.0);
 
 		self.quad_count += 1;
 	}
@@ -118,7 +118,7 @@ impl ChunkMesh {
 		self.normals.resize(vert_count);
 		self.indexes.resize(index_count);
 		self.colors.resize(vert_count);
-		self.uvs.resize(vert_count);
+		// self.uvs.resize(vert_count);
 
 		self.quad_capacity = (self.quad_capacity as i32 + amount) as usize;
 	}
@@ -140,8 +140,7 @@ impl ChunkMesh {
 		mesh_data.set(Mesh::ARRAY_VERTEX as i32, &self.vertexes);
 		mesh_data.set(Mesh::ARRAY_NORMAL as i32, &self.normals);
 		mesh_data.set(Mesh::ARRAY_INDEX as i32, &self.indexes);
-
-		mesh_data.set(Mesh::ARRAY_TEX_UV as i32, &self.uvs);
+		// mesh_data.set(Mesh::ARRAY_TEX_UV as i32, &self.uvs);
 		mesh_data.set(Mesh::ARRAY_COLOR as i32, &self.colors);
 		
 		let mesh_data = unsafe { mesh_data.assume_unique().into_shared() };
@@ -162,7 +161,7 @@ impl ChunkMesh {
 		self.vertexes.resize(0);
 		self.normals.resize(0);
 		self.indexes.resize(0);
-		self.uvs.resize(0);
+		// self.uvs.resize(0);
 		self.colors.resize(0);
 	}
 }

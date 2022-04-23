@@ -85,6 +85,11 @@ pub trait VoxelColour {
 impl VoxelColour for Voxel {
 	#[inline]
 	fn color(&self) -> Color {
-		Color::from_hsv(*self as f32 / 256.0, 0.5, 1.0)
+		// Color::from_hsv(*self as f32 / 256.0, 0.5, 1.0)
+		let x = self % 16;
+		let y = self / 16;
+		let x = x as f32 / 16.0;
+		let y = y as f32 / 16.0;
+		Color::from_rgb(x, y, 0.0)
 	}
 }

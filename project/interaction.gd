@@ -17,6 +17,7 @@ func _ready():
 func _process(_delta):
 	world.player_pos = player.translation
 	debugtext.text = str(Engine.get_frames_per_second())
+	debugtext.text += "\n" + str(forward().round())
 
 	var result = world.cast_ray(player.translation, forward(), 32.0)
 	if update_debug:

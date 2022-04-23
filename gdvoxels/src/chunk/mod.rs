@@ -79,7 +79,7 @@ impl Chunk {
 
 	fn generate(&mut self) {
 		if self.location.y < 0.0 {
-			self.core.voxels = [64; VOLUME];
+			self.core.voxels = [3; VOLUME];
 		}
 		else {
 			self.core.voxels = [0; VOLUME];
