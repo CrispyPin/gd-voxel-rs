@@ -81,15 +81,21 @@ impl Chunk {
 		if self.location.y < 0.0 {
 			self.core.voxels = [3; VOLUME];
 		}
+		else if self.location.y < 1.0 {
+			// torus
+			for i in 0..VOLUME {
+				if index_to_pos(i).y < 8.0 {
+					self.core.voxels[i] = 1;
+				}
+				let pos = index_to_pos(i) - ivec3(1,1,1) * 8.0 + Vector3::new(0.5, 0.5, 0.5);
+				if torus(5.0, 2.0, pos.x, pos.y, pos.z) {
+					// self.core.voxels[i] = self.rng.randi_range(1, 255) as u8;
+					self.core.voxels[i] = 2;
+				}
+			}
+		}
 		else {
 			self.core.voxels = [0; VOLUME];
-		}
-		// torus
-		for i in 0..VOLUME {
-			let pos = index_to_pos(i) - ivec3(1,1,1) * 16.0 + Vector3::new(0.5, 0.5, 0.5);
-			if torus(8.0, 3.0, pos.x, pos.y, pos.z) {
-				self.core.voxels[i] = self.rng.randi_range(1, 255) as u8;
-			}
 		}
 
 		// 3d checkerboard

@@ -17,11 +17,11 @@ dest_files=[ "res://.import/uv_grid.png-d38d9320d1ca321999a0260517d59779.s3tc.st
 [params]
 
 compress/mode=2
-compress/lossy_quality=0.7
+compress/lossy_quality=0.9
 compress/hdr_mode=0
 compress/bptc_ldr=0
-compress/normal_map=0
-flags/repeat=true
+compress/normal_map=2
+flags/repeat=0
 flags/filter=false
 flags/mipmaps=true
 flags/anisotropic=false
@@ -32,6 +32,6 @@ process/HDR_as_SRGB=false
 process/invert_color=false
 process/normal_map_invert_y=false
 stream=false
-size_limit=0
+size_limit=1024
 detect_3d=false
 svg/scale=1.0
