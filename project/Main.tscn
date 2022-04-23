@@ -1,8 +1,8 @@
 [gd_scene load_steps=6 format=2]
 
 [ext_resource path="res://addons/voxel-engine/VoxelWorld.tscn" type="PackedScene" id=1]
-[ext_resource path="res://camera.gd" type="Script" id=2]
-[ext_resource path="res://interaction.gd" type="Script" id=3]
+[ext_resource path="res://FreeCam.tscn" type="PackedScene" id=2]
+[ext_resource path="res://crosshair.svg" type="Texture" id=3]
 [ext_resource path="res://addons/voxel-engine/materials/cursor.material" type="Material" id=4]
 
 [sub_resource type="CubeMesh" id=3]
@@ -11,16 +11,7 @@ size = Vector3( 1, 1, 1 )
 [node name="Main" type="Node"]
 
 [node name="VoxelWorld" parent="." instance=ExtResource( 1 )]
-load_distance = 3
-
-[node name="Camera" type="Camera" parent="."]
-far = 1024.0
-script = ExtResource( 2 )
-speed = 16
-
-[node name="Interaction" type="Spatial" parent="Camera"]
-transform = Transform( -4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 0, 0, -1 )
-script = ExtResource( 3 )
+load_distance = 2
 
 [node name="DirectionalLight" type="DirectionalLight" parent="."]
 transform = Transform( 1, 0, 0, 0, 0.77128, 0.636496, 0, -0.636496, 0.77128, 0, 3.56554, 0 )
@@ -37,3 +28,19 @@ material/0 = ExtResource( 4 )
 [node name="DEBUGTEXT" type="Label" parent="."]
 margin_right = 40.0
 margin_bottom = 14.0
+
+[node name="Camera" parent="." instance=ExtResource( 2 )]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8, 0 )
+speed = 4
+
+[node name="TextureRect" type="TextureRect" parent="."]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+margin_left = -16.0
+margin_top = -16.0
+margin_right = 16.0
+margin_bottom = 16.0
+texture = ExtResource( 3 )
+expand = true

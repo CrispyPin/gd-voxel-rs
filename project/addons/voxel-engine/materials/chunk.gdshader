@@ -30,5 +30,5 @@ void fragment() {
 	color += col_p_z * max(dot(normal, vec3(0., 0., 1.)),0.0);
 	color += col_n_z * max(dot(normal, vec3(0., 0., -1.)),0.0);
 
-	ALBEDO = color.rgb;
+	ALBEDO = color.rgb * color.rgb;
 }

@@ -64,10 +64,10 @@ impl ChunkMesh {
 			}
 		}
 		self.apply();
-		if self.quad_count > 0 {
-			let time_taken = start_time.elapsed().as_micros() as f64 / 1000.0;
-			godot_print!("simple mesh took: {} ms", time_taken);
-		}
+		// if self.quad_count > 0 {
+		// 	let time_taken = start_time.elapsed().as_micros() as f64 / 1000.0;
+		// 	godot_print!("simple mesh took: {} ms", time_taken);
+		// }
 	}
 
 	#[inline]
