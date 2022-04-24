@@ -8,6 +8,8 @@ use crate::materials::*;
 
 const CHUNK_PATH: &str = "res://addons/voxel-engine/Chunk.tscn";
 
+type Loc = (i32, i32, i32);
+
 #[derive(NativeClass)]
 #[inherit(Node)]
 pub struct VoxelWorld {
@@ -15,7 +17,8 @@ pub struct VoxelWorld {
 	load_distance: u16,
 	#[property]
 	player_pos: Vector3,
-	chunks: HashMap<(i32, i32, i32), Chunk>,
+	chunks: HashMap<Loc, Chunk>,
+	modified_chunks: Vec<Loc>,
 	chunk_resource: Ref<PackedScene>,
 	materials: VoxelMaterials,
 }
@@ -31,6 +34,7 @@ impl VoxelWorld {
 		
 		Self {
 			chunks: HashMap::new(),
+			modified_chunks: Vec::new(),
 			materials: VoxelMaterials::new(),
 			load_distance: 2,
 			player_pos: Vector3::ZERO,
@@ -45,16 +49,12 @@ impl VoxelWorld {
 
 	#[export]
 	fn _process(&mut self, owner: &Node, _delta: f32) {
-		// let input = Input::godot_singleton();
-		// if input.is_action_just_pressed("f2", false) {
-			self.load_near(owner);
-		// }
-		for chunk in self.chunks.values_mut() {
-			if chunk.needs_remesh {
-				chunk.mesh.generate_simple(&chunk.core, &self.materials);
-				chunk.needs_remesh = false;
-			}
+		self.load_near(owner);
+		
+		for loc in self.modified_chunks.iter() {
+			self.chunks.get_mut(loc).unwrap().mesh_full(&self.materials);
 		}
+		self.modified_chunks.clear();
 	}
 
 	/// casts ray through world, sees unloaded chunks as empty
@@ -91,6 +91,7 @@ impl VoxelWorld {
 		self.load_or_generate(_owner, loc);
 		if let Some(chunk) = self.get_chunk(loc) {
 			chunk.set_voxel(local_pos(pos), voxel);
+			self.mark_modified(key(loc));
 		}
 	}
 
@@ -147,6 +148,7 @@ impl VoxelWorld {
 		owner.add_child(mesh, false);
 		
 		self.chunks.insert(key(loc), new_chunk);
+		self.mark_modified(key(loc));
 	}
 
 	fn chunk_is_loaded(&self, loc: Vector3) -> bool {
@@ -156,11 +158,17 @@ impl VoxelWorld {
 	fn get_chunk(&mut self, loc: Vector3) -> Option<&mut Chunk> {
 		self.chunks.get_mut(&key(loc))
 	}
+
+	fn mark_modified(&mut self, loc: Loc) {
+		if !self.modified_chunks.contains(&loc) {
+			self.modified_chunks.push(loc);
+		}
+	}
 }
 
 /// convert Vector3 to i32 tuple to use as a key in chunk array
 #[inline]
-fn key(loc: Vector3) -> (i32, i32, i32) {
+fn key(loc: Vector3) -> Loc {
 	let loc = loc.floor();
 	(loc.x as i32, loc.y as i32, loc.z as i32)
 }

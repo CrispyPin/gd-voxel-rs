@@ -4,13 +4,13 @@ mod mesh;
 mod core;
 
 use crate::common::*;
+use crate::materials::VoxelMaterials;
 use self::mesh::*;
 use self::core::*;
 
 pub struct Chunk {
 	pub core: ChunkCore,
 	pub mesh: ChunkMesh,
-	pub needs_remesh: bool,
 	location: Vector3,
 }
 
@@ -20,11 +20,14 @@ impl Chunk {
 		let mut instance = Self {
 			core: ChunkCore::new(),
 			mesh: ChunkMesh::new(),
-			needs_remesh: true,
 			location,
 		};
 		instance.generate();
 		instance
+	}
+
+	pub fn mesh_full(&mut self, materials: &VoxelMaterials) {
+		self.mesh.generate_full(&self.core, materials);
 	}
 
 	pub fn generate(&mut self) {
@@ -72,6 +75,5 @@ impl Chunk {
 	#[inline]
 	pub fn set_voxel(&mut self, pos: Vector3, voxel: Voxel) {
 		self.core.set_voxel(pos, voxel);
-		self.needs_remesh = true;
 	}
 }

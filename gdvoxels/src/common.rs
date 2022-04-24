@@ -79,20 +79,10 @@ impl RayResult {
 }
 
 pub trait VoxelData {
-	fn color(&self) -> Color;
 	fn name(&self) -> String;
 }
 
 impl VoxelData for Voxel {
-	#[inline]
-	fn color(&self) -> Color {
-		let x = self % 16;
-		let y = self / 16;
-		let x = x as f32 / 16.0;
-		let y = y as f32 / 16.0;
-		Color::from_rgb(x, y, 0.0)
-	}
-
 	fn name(&self) -> String {
 		match *self {
 			0 => "air".into(),

@@ -29,7 +29,6 @@ pub struct ChunkMesh {
 
 struct Surface {
 	voxel_type: Voxel,
-	//material: Ref<ShaderMaterial, Shared>,
 	vertexes: PoolArray<Vector3>,
 	normals: PoolArray<Vector3>,
 	// uvs: PoolArray<Vector2>,
@@ -52,7 +51,7 @@ impl ChunkMesh {
 	}
 	
 	/// fast but suboptimal mesh
-	pub fn generate_simple(&mut self, core: &ChunkCore, materials: &VoxelMaterials) {
+	pub fn generate_full(&mut self, core: &ChunkCore, materials: &VoxelMaterials) {
 		// let start_time = Instant::now();
 		for s in self.surfaces.iter_mut() {
 			s.clear();
