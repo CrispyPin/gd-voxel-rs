@@ -37,7 +37,9 @@ func _process(_delta):
 
 func raycast():
 	var result = world.cast_ray(player.translation, forward(), 12.0)
-	indicator.translation = (result.pos + result.normal*0.5).floor()
+#	indicator.translation = (result.pos + result.normal*0.5).floor()
+	indicator.translation = (result.pos - result.normal*0.5).floor()
+#	indicator.translation = result.pos.floor()
 	indicator.visible = result.hit
 	return result
 

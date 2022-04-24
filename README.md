@@ -4,7 +4,6 @@ A WIP voxel system for Godot.
 Partially a rewrite of https://github.com/CrispyPin/voxel-meshing
 
 **Todo**:
-- separate mesh surfaces for each voxel type
 - mesh generation optimisation (in place editing)
 - load chunks in a separate thread, closest first
 - collision/player controller
