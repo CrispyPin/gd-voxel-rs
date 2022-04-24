@@ -51,7 +51,6 @@ impl ChunkMesh {
 	
 	/// fast but suboptimal mesh
 	pub fn remesh_full(&mut self, core: &ChunkCore, materials: &VoxelMaterials) {
-		// let start_time = Instant::now();
 		for s in self.surfaces.iter_mut() {
 			s.clear();
 		}
@@ -64,13 +63,7 @@ impl ChunkMesh {
 				self.add_cube(pos, surf_i, core);
 			}
 		}
-		// let time_taken = start_time.elapsed().as_micros() as f64 / 1000.0;
-		// godot_print!("simple mesh took:  {} ms", time_taken);
 		self.apply(materials);
-		// if self.quad_count > 0 {
-		// let time_taken = start_time.elapsed().as_micros() as f64 / 1000.0;
-		// godot_print!("applying took:     {} ms", time_taken);
-		// }
 	}
 
 	pub fn remesh_partial(&mut self, core: &ChunkCore, materials: &VoxelMaterials, pos: Vector3) {
@@ -103,7 +96,6 @@ impl ChunkMesh {
 				}
 			}
 		}
-
 		self.apply(materials);
 	}
 
@@ -141,23 +133,28 @@ impl ChunkMesh {
 	}
 
 	fn apply(&mut self, materials: &VoxelMaterials) {
-		// remove unused
 		for s in self.surfaces.iter_mut() {
 			s.trim();
 		}
 		let array_mesh = unsafe { self.array_mesh.assume_safe() };
 		
+		// clear current mesh data
 		while array_mesh.get_surface_count() > 0 {
 			array_mesh.surface_remove(0);
 		}
 
-		let mut s_count = 0;
-		for s in self.surfaces.iter() {
+		let mut surf_i = 0;
+		
+		while surf_i < self.surfaces.len() {
+			let s = &self.surfaces[surf_i];
 			if s.quad_count > 0 {
 				let mesh_data = s.get_array();
 				array_mesh.add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, mesh_data, VariantArray::new_shared(), 0);
-				array_mesh.surface_set_material(s_count, materials.get(s.voxel_type));
-				s_count += 1;
+				array_mesh.surface_set_material(surf_i as i64, materials.get(s.voxel_type));
+				surf_i += 1;
+			}
+			else {
+				self.surfaces.remove(surf_i);
 			}
 		}
 	}
@@ -179,7 +176,7 @@ impl Surface {
 
 	fn remove_near(&mut self, pos: Vector3) {
 		let pos_min = pos;
-		let pos_max = pos+Vector3::ONE;
+		let pos_max = pos + Vector3::ONE;
 
 		let mut quad_i = 0;
 		while quad_i < self.quad_count {

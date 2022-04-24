@@ -56,7 +56,8 @@ impl Chunk {
 				}
 			}
 		}
-/* 		else if self.location.y < WIDTH_F+1.0 {
+		/* 		else if self.location.y < WIDTH_F+1.0 {
+			// 3d checkerboard
 			for i in 0..VOLUME {
 				self.core.voxels[i] = ((i % 2 
 						+ (i / WIDTH % 2)
@@ -67,16 +68,6 @@ impl Chunk {
 		else {
 			self.core.voxels = [0; VOLUME];
 		}
-
-		// 3d checkerboard
-		/*
-		for i in 0..VOLUME {
-			self.core.voxels[i] = ((i % 2 
-					+ (i / WIDTH % 2)
-					+ (i / AREA % 2))
-				 % 2) as Voxel;
-		}
-		// */
 
 		fn torus(major: f32, minor: f32, x: f32, y: f32, z: f32) -> bool {
 			let q = Vector2::new(Vector2::new(x, z).length() - major, y);

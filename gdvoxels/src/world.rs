@@ -7,6 +7,8 @@ use crate::common::*;
 use crate::chunk::*;
 use crate::materials::*;
 
+const PRINT_MESH_TIMES: bool = false;
+
 const CHUNK_PATH: &str = "res://addons/voxel-engine/Chunk.tscn";
 
 type Loc = (i32, i32, i32);
@@ -68,7 +70,9 @@ impl VoxelWorld {
 				MeshUpdate::Full(loc) => self.chunks.get_mut(loc).unwrap().mesh_full(&self.materials),
 				MeshUpdate::Partial(loc, pos) => self.chunks.get_mut(loc).unwrap().mesh_partial(&self.materials, *pos),
 			}
-			godot_print!("remesh took: {}ms", start_time.elapsed().as_micros() as f64 / 1000.0);
+			if PRINT_MESH_TIMES {
+				godot_print!("remesh took: {}ms", start_time.elapsed().as_micros() as f64 / 1000.0);
+			}
 		}
 		self.chunk_update_queue.clear();
 	}
