@@ -78,19 +78,29 @@ impl RayResult {
 	}
 }
 
-pub trait VoxelColour {
+pub trait VoxelData {
 	fn color(&self) -> Color;
+	fn name(&self) -> String;
 }
 
-impl VoxelColour for Voxel {
+impl VoxelData for Voxel {
 	#[inline]
 	fn color(&self) -> Color {
-		// Color::from_hsv(*self as f32 / 256.0, 0.5, 1.0)
 		let x = self % 16;
 		let y = self / 16;
 		let x = x as f32 / 16.0;
 		let y = y as f32 / 16.0;
 		Color::from_rgb(x, y, 0.0)
+	}
+
+	fn name(&self) -> String {
+		match *self {
+			0 => "air".into(),
+			1 => "stone".into(),
+			2 => "dirt".into(),
+			3 => "grass".into(),
+			other => format!("{}", other),
+		}
 	}
 }
 

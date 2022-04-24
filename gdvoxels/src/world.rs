@@ -4,6 +4,7 @@ use gdnative::prelude::*;
 
 use crate::common::*;
 use crate::chunk::*;
+use crate::materials::*;
 
 const CHUNK_PATH: &str = "res://addons/voxel-engine/Chunk.tscn";
 
@@ -16,6 +17,7 @@ pub struct VoxelWorld {
 	player_pos: Vector3,
 	chunks: HashMap<(i32, i32, i32), Chunk>,
 	chunk_resource: Ref<PackedScene>,
+	materials: VoxelMaterials,
 }
 
 #[methods]
@@ -29,6 +31,7 @@ impl VoxelWorld {
 		
 		Self {
 			chunks: HashMap::new(),
+			materials: VoxelMaterials::new(),
 			load_distance: 2,
 			player_pos: Vector3::ZERO,
 			chunk_resource,
@@ -48,7 +51,7 @@ impl VoxelWorld {
 		// }
 		for chunk in self.chunks.values_mut() {
 			if chunk.needs_remesh {
-				chunk.mesh.generate_simple(&chunk.core);
+				chunk.mesh.generate_simple(&chunk.core, &self.materials);
 				chunk.needs_remesh = false;
 			}
 		}

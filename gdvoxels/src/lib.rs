@@ -3,6 +3,7 @@ use gdnative::prelude::*;
 mod world;
 mod chunk;
 mod common;
+mod materials;
 
 use world::*;
 
