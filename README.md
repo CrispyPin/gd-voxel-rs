@@ -4,14 +4,13 @@ A WIP voxel system for Godot.
 Partially a rewrite of https://github.com/CrispyPin/voxel-meshing
 
 **Todo**:
-- mesh generation optimisation (in place editing)
 - load chunks in a separate thread, closest first
 - collision/player controller
 - greedy meshing
 - handle voxels with alpha
 - terrain gen
 
-**Plan**:
+**Plan**:  
 mesh in-place editing:
 - for each material type:
 	- find affected quads by searching entire chunk

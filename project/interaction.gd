@@ -8,24 +8,24 @@ onready var debugtext = $"/root/Main/DEBUGTEXT"
 var vtype := 1
 
 func _ready():
-	world.set_voxel(Vector3(3,3,3), 1)
-
+#	world.set_voxel(Vector3(3,3,3), 1)
+	pass
 
 func _process(_delta):
 	world.player_pos = player.translation
-	debugtext.text = str(Engine.get_frames_per_second())
-	debugtext.text += "\n" + str(forward())
-	debugtext.text += "\n" + str(player.translation.floor())
-	debugtext.text += "\n" + str(vtype)
+	debugtext.text = "FPS: " + str(Engine.get_frames_per_second())
+	debugtext.text += "\nforward: " + str(forward())
+	debugtext.text += "\npos: " + str(player.translation.floor())
+	debugtext.text += "\nvoxel type: " + str(vtype)
 
 	var result = raycast()
 
-	if Input.is_action_just_pressed("place"):
+	if Input.is_action_pressed("place"):
 		if result.hit:
 			if world.get_voxel(result.pos + result.normal*0.5) == 0:
 				world.set_voxel(result.pos + result.normal*0.5, vtype)
 
-	if Input.is_action_just_pressed("break"):
+	if Input.is_action_pressed("break"):
 		if result.hit:
 			world.set_voxel(result.pos - result.normal*0.4, 0)
 

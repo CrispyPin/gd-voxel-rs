@@ -1,3 +1,4 @@
+use gdnative::api::ArrayMesh;
 use gdnative::prelude::*;
 
 mod mesh;
@@ -10,7 +11,7 @@ use self::core::*;
 
 pub struct Chunk {
 	pub core: ChunkCore,
-	pub mesh: ChunkMesh,
+	mesh: ChunkMesh,
 	location: Vector3,
 }
 
@@ -26,8 +27,16 @@ impl Chunk {
 		instance
 	}
 
+	pub fn get_mesh(&self) -> &Ref<ArrayMesh, Shared>{
+		self.mesh.array_mesh()
+	}
+
 	pub fn mesh_full(&mut self, materials: &VoxelMaterials) {
-		self.mesh.generate_full(&self.core, materials);
+		self.mesh.remesh_full(&self.core, materials);
+	}
+
+	pub fn mesh_partial(&mut self, materials: &VoxelMaterials, pos: Vector3) {
+		self.mesh.remesh_partial(&self.core, materials, pos);
 	}
 
 	pub fn generate(&mut self) {
@@ -47,6 +56,14 @@ impl Chunk {
 				}
 			}
 		}
+/* 		else if self.location.y < WIDTH_F+1.0 {
+			for i in 0..VOLUME {
+				self.core.voxels[i] = ((i % 2 
+						+ (i / WIDTH % 2)
+						+ (i / AREA % 2))
+					 % 2) as Voxel;
+			}
+		} */
 		else {
 			self.core.voxels = [0; VOLUME];
 		}
