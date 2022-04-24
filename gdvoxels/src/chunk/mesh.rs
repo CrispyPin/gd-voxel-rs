@@ -69,7 +69,7 @@ impl ChunkMesh {
 	pub fn remesh_partial(&mut self, core: &ChunkCore, materials: &VoxelMaterials, pos: Vector3) {
 		// remove affected quads
 		for s in self.surfaces.iter_mut() {
-			s.remove_near(pos);
+			s.remove_around(pos);
 		}
 
 		let voxel = core.get_voxel_unsafe(pos);
@@ -137,14 +137,9 @@ impl ChunkMesh {
 			s.trim();
 		}
 		let array_mesh = unsafe { self.array_mesh.assume_safe() };
-		
-		// clear current mesh data
-		while array_mesh.get_surface_count() > 0 {
-			array_mesh.surface_remove(0);
-		}
+		array_mesh.clear_surfaces();
 
 		let mut surf_i = 0;
-		
 		while surf_i < self.surfaces.len() {
 			let s = &self.surfaces[surf_i];
 			if s.quad_count > 0 {
@@ -158,8 +153,6 @@ impl ChunkMesh {
 			}
 		}
 	}
-
-	
 }
 
 impl Surface {
@@ -174,7 +167,7 @@ impl Surface {
 		}
 	}
 
-	fn remove_near(&mut self, pos: Vector3) {
+	fn remove_around(&mut self, pos: Vector3) {
 		let pos_min = pos;
 		let pos_max = pos + Vector3::ONE;
 
@@ -190,6 +183,7 @@ impl Surface {
 			}
 		}
 
+		#[inline]
 		fn in_box(v: Vector3, min: Vector3, max: Vector3) -> bool {
 			v.x <= max.x && v.x >= min.x
 			&& v.y <= max.y && v.y >= min.y

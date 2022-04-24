@@ -9,14 +9,16 @@ use crate::materials::*;
 
 const PRINT_MESH_TIMES: bool = false;
 
-const CHUNK_PATH: &str = "res://addons/voxel-engine/Chunk.tscn";
-
+/// Represents a chunk location
+/// 
+/// Loc(1,2,3) correspsonds to the chunk at (32, 64, 96) assuming a chunk size of 32
 type Loc = (i32, i32, i32);
 
 enum MeshUpdate {
 	Full(Loc),
 	Partial(Loc, Vector3),
 }
+
 
 #[derive(NativeClass)]
 #[inherit(Node)]
@@ -29,19 +31,13 @@ pub struct VoxelWorld {
 	player_pos: Vector3,
 	chunks: HashMap<Loc, Chunk>,
 	chunk_update_queue: Vec<MeshUpdate>,
-	chunk_resource: Ref<PackedScene>,
 	materials: VoxelMaterials,
 }
+
 
 #[methods]
 impl VoxelWorld {
 	fn new(_owner: &Node) -> Self {
-		let chunk_resource = ResourceLoader::godot_singleton()
-			.load(CHUNK_PATH, "PackedScene", false)
-			.unwrap()
-			.cast::<PackedScene>()
-			.unwrap();
-		
 		Self {
 			chunks: HashMap::new(),
 			chunk_update_queue: Vec::new(),
@@ -49,7 +45,6 @@ impl VoxelWorld {
 			load_distance: 2,
 			auto_load: true,
 			player_pos: Vector3::ZERO,
-			chunk_resource,
 		}
 	}
 
@@ -94,7 +89,7 @@ impl VoxelWorld {
 				return RayResult::hit(ray_pos, normal, voxel, ray_len);
 			}
 			
-			let pos_in_voxel = fract(fract(ray_pos) + Vector3::ONE);
+			let pos_in_voxel = fract(ray_pos);
 			// distance "forward" along each axis to the next plane intersection
 			let dist_to_next_plane = stepped_dir - pos_in_voxel;
 			// distance along the ray to next plane intersection for each axis
@@ -102,6 +97,14 @@ impl VoxelWorld {
 			// move the smallest of these distances, so that no voxel is skipped
 			ray_len += mincomp(deltas).max(0.0001);
 		}
+
+		fn calc_normal(hit_pos: Vector3) -> Vector3 {
+			let pos_in_voxel = fract(hit_pos);
+			let centered = pos_in_voxel - Vector3::ONE*0.5;
+			let axis = centered.abs().max_axis();
+			axis.vec() * centered.sign()
+		}
+
 		RayResult::miss(source + dir * max_len, max_len)
 	}
 
@@ -154,15 +157,7 @@ impl VoxelWorld {
 	}
 
 	fn create_chunk(&mut self, owner: &Node, loc: Vector3) {
-		let mesh = unsafe {
-			self.chunk_resource
-			.assume_safe()
-			.instance(0)
-			.unwrap()
-			.assume_safe()
-			.cast::<MeshInstance>()
-			.unwrap()
-		};
+		let mesh = MeshInstance::new();
 		let new_chunk = Chunk::new(loc * WIDTH_F);
 
 		mesh.set_mesh(new_chunk.get_mesh());
@@ -192,19 +187,16 @@ fn key(loc: Vector3) -> Loc {
 
 #[inline]
 fn fract(v: Vector3) -> Vector3 {
-	Vector3::new(v.x.fract(), v.y.fract(), v.z.fract())
+	Vector3::new(
+		(v.x.fract() + 1.0).fract(),
+		(v.y.fract() + 1.0).fract(),
+		(v.z.fract() + 1.0).fract()
+	)
 }
 
 #[inline]
 fn mincomp(v: Vector3) -> f32 {
 	v.x.min(v.y.min(v.z))
-}
-
-fn calc_normal(hit_pos: Vector3) -> Vector3 {
-	let pos_in_voxel = fract(fract(hit_pos)+Vector3::ONE);
-	let centered = pos_in_voxel - Vector3::ONE*0.5;
-	let axis = centered.abs().max_axis();
-	axis.vec() * centered.sign()
 }
 
 fn step(e: f32, v: Vector3) -> Vector3 {
