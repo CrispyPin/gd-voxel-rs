@@ -31,8 +31,6 @@ pub struct ChunkMesh {
 struct Surface {
 	voxel_type: Voxel,
 	vertexes: PoolArray<Vector3>,
-	normals: PoolArray<Vector3>,
-	indexes: Int32Array,
 	quad_count: usize,
 	quad_capacity: usize,
 }
@@ -73,7 +71,7 @@ impl ChunkMesh {
 
 		let mut adjacent_voxels = Vec::new();
 		let mut affected_surfaces = vec![self.ensure_surface(voxel), self.ensure_surface(old_voxel)];
-		
+
 		for face in 0..6 {
 			let v = core.get_voxel(pos - NORMALS[face]);
 			adjacent_voxels.push(v);
@@ -82,7 +80,7 @@ impl ChunkMesh {
 
 		// remove affected quads
 		for surf_i in affected_surfaces.iter().filter(|&i| *i != usize::MAX) {
-			self.surfaces[*surf_i].remove_quads_in_bound(pos, pos + Vector3::ONE);
+			self.surfaces[*surf_i].remove_quads_in_bound(pos - Vector3::ONE*0.9, pos + Vector3::ONE*1.1);
 		}
 
 		if voxel != EMPTY {
@@ -176,8 +174,6 @@ impl Surface {
 		Self {
 			voxel_type,
 			vertexes: PoolArray::new(),
-			normals: PoolArray::new(),
-			indexes: PoolArray::new(),
 			quad_count: 0,
 			quad_capacity: 0,
 		}
@@ -186,8 +182,8 @@ impl Surface {
 	fn remove_quads_in_bound(&mut self, pos_min: Vector3, pos_max: Vector3) {
 		let mut quad_i = 0;
 		while quad_i < self.quad_count {
-			if (0..4).all(|i| 
-				in_box(self.vertexes.get(quad_i as i32 * 4 + i), pos_min, pos_max))
+			if (0..6).all(|i| 
+				in_box(self.vertexes.get(quad_i as i32 * 6 + i), pos_min, pos_max))
 				{
 				self.remove_quad(quad_i);
 			}
@@ -206,36 +202,24 @@ impl Surface {
 
 	/// removes a quad by moving a quad from the end of the list to its location
 	/// would probably crash if only one exists, but the lowest it can be is 6 so it shouldTM not happen
-	fn remove_quad(&mut self, index: usize) {
-		let replacement = self.quad_count - 1;
-		if index == replacement {
-			self.quad_count -= 1;
+	fn remove_quad(&mut self, to_remove: usize) {
+		self.quad_count -= 1;
+		let replacement = self.quad_count;
+		if to_remove == replacement {
 			return;
 		}
-		{
-			let mut vertex_w = self.vertexes.write();
-			let mut normal_w = self.normals.write();	
-			for v in 0..4 {
-				vertex_w[index * 4 + v] = vertex_w[replacement * 4 + v];
-				normal_w[index * 4 + v] = normal_w[replacement * 4 + v];
-			}
-			// indexes do not need changing as they are lined up with vertexes; index N will coninue to point at point N, but the point gets replaced. whatever was at the end will just be dropped
+		let mut vertex_w = self.vertexes.write();
+		for v in 0..6 {
+			vertex_w[to_remove * 6 + v] = vertex_w[replacement * 6 + v];
 		}
-		self.quad_count -= 1;
 	}
 
 	/// add a quad from 4 verts, in the order: [0, 1, 2, 2, 3, 0]
-	fn add_quad(&mut self, corners: [Vector3; 4], face: usize/* , color: Color */) {
+	fn add_quad(&mut self, corners: [Vector3; 4], face: usize) {
 		let mut vertex_w = self.vertexes.write();
-		let mut normal_w = self.normals.write();	
-		let mut index_w = self.indexes.write();
-	
-		for v in 0..4 {
-			vertex_w[self.quad_count * 4 + v] = corners[v];
-			normal_w[self.quad_count * 4 + v] = NORMALS[face];
-		}
-		for i in 0..6 {
-			index_w[self.quad_count * 6 + i] = (self.quad_count * 4 + QUAD_OFFSETS[i]) as i32;
+		let encoded_normal = Vector3::new(face as f32 / 100.0 + 0.005, 0.0, 0.0);
+		for v in 0..6 {
+			vertex_w[self.quad_count * 6 + v] = corners[QUAD_OFFSETS[v]] + encoded_normal;
 		}
 		self.quad_count += 1;
 	}
@@ -244,21 +228,13 @@ impl Surface {
 		let mesh_data = VariantArray::new_thread_local();
 		mesh_data.resize(Mesh::ARRAY_MAX as i32);
 		mesh_data.set(Mesh::ARRAY_VERTEX as i32, &self.vertexes);
-		mesh_data.set(Mesh::ARRAY_NORMAL as i32, &self.normals);
-		mesh_data.set(Mesh::ARRAY_INDEX as i32, &self.indexes);
-		
 		unsafe { mesh_data.assume_unique().into_shared() }
 	}
 
 	/// allocate space for additional quads
 	fn resize_buffers(&mut self, amount: i32) {
-		let vert_count = self.vertexes.len() + amount * 4;
-		let index_count = self.indexes.len() + amount * 6;
-		
+		let vert_count = self.vertexes.len() + amount * 6;
 		self.vertexes.resize(vert_count);
-		self.normals.resize(vert_count);
-		self.indexes.resize(index_count);
-
 		self.quad_capacity = (self.quad_capacity as i32 + amount) as usize;
 	}
 
@@ -278,7 +254,5 @@ impl Surface {
 		self.quad_count = 0;
 		self.quad_capacity = 0;
 		self.vertexes.resize(0);
-		self.normals.resize(0);
-		self.indexes.resize(0);
 	}
 }
