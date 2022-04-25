@@ -31,10 +31,14 @@ material/0 = null
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 12, 1 )
 
 [node name="Crosshair" type="TextureRect" parent="."]
-margin_left = 496.0
-margin_top = 284.0
-margin_right = 496.0
-margin_bottom = 298.0
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+margin_left = -16.0
+margin_top = -16.0
+margin_right = 16.0
+margin_bottom = 16.0
 texture = ExtResource( 3 )
 expand = true
 
