@@ -1,20 +1,16 @@
-[gd_scene load_steps=7 format=2]
+[gd_scene load_steps=6 format=2]
 
 [ext_resource path="res://addons/voxel-engine/VoxelWorld.tscn" type="PackedScene" id=1]
 [ext_resource path="res://FreeCam.tscn" type="PackedScene" id=2]
 [ext_resource path="res://crosshair.svg" type="Texture" id=3]
-[ext_resource path="res://highlight.material" type="Material" id=4]
 [ext_resource path="res://highlight_box.tres" type="ArrayMesh" id=5]
 
-[sub_resource type="SphereMesh" id=1]
-radius = 0.2
-height = 0.4
+[sub_resource type="StyleBoxFlat" id=1]
+bg_color = Color( 0, 0, 0, 0.490196 )
 
 [node name="Main" type="Node"]
 
 [node name="VoxelWorld" parent="." instance=ExtResource( 1 )]
-load_distance = 1
-auto_load = true
 
 [node name="Sun" type="DirectionalLight" parent="."]
 transform = Transform( 0.866025, -0.321394, 0.383022, 0, 0.766044, 0.642788, -0.5, -0.55667, 0.663414, 0, 3.56554, 0 )
@@ -31,48 +27,22 @@ mesh = ExtResource( 5 )
 software_skinning_transform_normals = false
 material/0 = null
 
-[node name="DEBUGTEXT" type="Label" parent="."]
-margin_right = 40.0
-margin_bottom = 14.0
-
 [node name="Camera" parent="." instance=ExtResource( 2 )]
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 12, 1 )
 
 [node name="Crosshair" type="TextureRect" parent="."]
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-margin_left = -16.0
-margin_top = -16.0
-margin_right = 16.0
-margin_bottom = 16.0
+margin_left = 496.0
+margin_top = 284.0
+margin_right = 496.0
+margin_bottom = 298.0
 texture = ExtResource( 3 )
 expand = true
 
-[node name="Spatial" type="Spatial" parent="."]
-visible = false
+[node name="DebugUI" type="PanelContainer" parent="."]
+margin_right = 14.0
+margin_bottom = 14.0
+custom_styles/panel = SubResource( 1 )
 
-[node name="A" type="MeshInstance" parent="Spatial"]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 8, 10 )
-mesh = SubResource( 1 )
-skeleton = NodePath("../../Camera")
-material/0 = ExtResource( 4 )
-
-[node name="B" type="MeshInstance" parent="Spatial"]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 9, 9, 10 )
-mesh = SubResource( 1 )
-skeleton = NodePath("../../Camera")
-material/0 = ExtResource( 4 )
-
-[node name="C" type="MeshInstance" parent="Spatial"]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 9, 10 )
-mesh = SubResource( 1 )
-skeleton = NodePath("../../Camera")
-material/0 = ExtResource( 4 )
-
-[node name="D" type="MeshInstance" parent="Spatial"]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 8, 10 )
-mesh = SubResource( 1 )
-skeleton = NodePath("../../Camera")
-material/0 = ExtResource( 4 )
+[node name="DEBUGTEXT" type="Label" parent="DebugUI"]
+margin_right = 14.0
+margin_bottom = 14.0

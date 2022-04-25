@@ -4,7 +4,7 @@ extends Spatial
 onready var world = $"/root/Main/VoxelWorld"
 onready var player = $".."
 onready var indicator = $"/root/Main/VoxelCursor"
-onready var debugtext = $"/root/Main/DEBUGTEXT"
+onready var debugtext = $"/root/Main/DebugUI/DEBUGTEXT"
 var vtype := 1
 
 func _ready():
@@ -14,7 +14,7 @@ func _ready():
 func _process(_delta):
 	world.player_pos = player.translation
 	debugtext.text = "FPS: " + str(Engine.get_frames_per_second())
-	debugtext.text += "\nforward: " + str(forward())
+	debugtext.text += "\nforward: " + str((forward() * 100).round() / 100)
 	debugtext.text += "\npos: " + str(player.translation.floor())
 	debugtext.text += "\nvoxel type: " + str(vtype)
 
@@ -44,5 +44,5 @@ func raycast():
 	return result
 
 
-func forward():
+func forward() -> Vector3:
 	return (global_transform.origin - player.translation).normalized()
