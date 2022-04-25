@@ -3,7 +3,7 @@ extends Spatial
 
 onready var world = $"/root/Main/VoxelWorld"
 onready var player = $".."
-onready var indicator = $"/root/Main/VoxelCursor"
+onready var indicator = $"/root/Main/HighlightBox"
 onready var debugtext = $"/root/Main/DebugUI/DEBUGTEXT"
 var vtype := 1
 

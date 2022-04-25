@@ -51,7 +51,6 @@ impl Chunk {
 				}
 				let pos = index_to_pos(i) - ivec3(1,1,1) * 8.0 + Vector3::new(0.5, 0.5, 0.5);
 				if torus(5.0, 2.0, pos.x, pos.y, pos.z) {
-					// self.core.voxels[i] = self.rng.randi_range(1, 255) as u8;
 					self.core.voxels[i] = 2;
 				}
 			}

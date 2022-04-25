@@ -1,4 +1,3 @@
-// use std::time::Instant;
 use gdnative::prelude::*;
 use gdnative::api::{ArrayMesh, Mesh};
 
@@ -80,7 +79,7 @@ impl ChunkMesh {
 
 		// remove affected quads
 		for surf_i in affected_surfaces.iter().filter(|&i| *i != usize::MAX) {
-			self.surfaces[*surf_i].remove_quads_in_bound(pos - Vector3::ONE*0.9, pos + Vector3::ONE*1.1);
+			self.surfaces[*surf_i].remove_quads_in_bound(pos - Vector3::ONE*0.1, pos + Vector3::ONE*1.1);
 		}
 
 		if voxel != EMPTY {
@@ -91,15 +90,17 @@ impl ChunkMesh {
 		else { // set faces for surrounding voxels; essentially an inverted version of the other case
 			for face in 0..6 {
 				let other_voxel = adjacent_voxels[face];
-				if  other_voxel != EMPTY {
+				if other_voxel != EMPTY {
 					let other_pos = pos - NORMALS[face];
 					let surf_i = affected_surfaces[face + 2];
 					self.surfaces[surf_i].allocate_batch(6, 6);
 
-					let mut verts = [Vector3::ZERO; 4];
-					for i in 0..4 {
-						verts[i] = other_pos + FACE_VERTS[face][i];
-					}
+					let verts = [
+						other_pos + FACE_VERTS[face][0],
+						other_pos + FACE_VERTS[face][1],
+						other_pos + FACE_VERTS[face][2],
+						other_pos + FACE_VERTS[face][3],
+					];
 					self.surfaces[surf_i].add_quad(verts, face);
 				}
 			}
@@ -112,10 +113,12 @@ impl ChunkMesh {
 		for face in 0..6 {
 			let normal = NORMALS[face];
 			if core.get_voxel(pos + normal) == EMPTY {
-				let mut verts = [Vector3::ZERO; 4];
-				for i in 0..4 {
-					verts[i] = pos + FACE_VERTS[face][i];
-				}
+				let verts = [
+					pos + FACE_VERTS[face][0],
+					pos + FACE_VERTS[face][1],
+					pos + FACE_VERTS[face][2],
+					pos + FACE_VERTS[face][3],
+				];
 				self.surfaces[surface_index].add_quad(verts, face);
 			}
 		}
@@ -123,6 +126,7 @@ impl ChunkMesh {
 	
 	/// ensures a surface exists for the voxel type and returns its index
 	/// if the requested voxel type is air, usize::MAX is returned instead
+	#[inline]
 	fn ensure_surface(&mut self, voxel: Voxel) -> usize {
 		if voxel == EMPTY {
 			return usize::MAX;
@@ -136,6 +140,7 @@ impl ChunkMesh {
 		index.unwrap()
 	}
 
+	#[inline]
 	fn get_surface_index(&self, voxel: Voxel) -> Option<usize> {
 		for (i, v) in self.surface_types.iter().enumerate() {
 			if *v == voxel {
@@ -215,6 +220,7 @@ impl Surface {
 	}
 
 	/// add a quad from 4 verts, in the order: [0, 1, 2, 2, 3, 0]
+	#[inline]
 	fn add_quad(&mut self, corners: [Vector3; 4], face: usize) {
 		let mut vertex_w = self.vertexes.write();
 		let encoded_normal = Vector3::new(face as f32 / 100.0 + 0.005, 0.0, 0.0);

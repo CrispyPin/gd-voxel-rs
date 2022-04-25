@@ -18,13 +18,8 @@ shadow_enabled = true
 shadow_bias = 0.0
 directional_shadow_mode = 0
 
-[node name="VoxelCursor" type="Spatial" parent="."]
-
-[node name="WireMesh" type="MeshInstance" parent="VoxelCursor"]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1 )
-generate_lightmap = false
+[node name="HighlightBox" type="MeshInstance" parent="."]
 mesh = ExtResource( 5 )
-software_skinning_transform_normals = false
 material/0 = null
 
 [node name="Camera" parent="." instance=ExtResource( 2 )]
