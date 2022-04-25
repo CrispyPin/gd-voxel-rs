@@ -31,12 +31,12 @@ impl Chunk {
 		self.mesh.array_mesh()
 	}
 
-	pub fn mesh_full(&mut self, materials: &VoxelMaterials) {
+	pub fn remesh(&mut self, materials: &VoxelMaterials) {
 		self.mesh.remesh_full(&self.core, materials);
 	}
 
-	pub fn mesh_partial(&mut self, materials: &VoxelMaterials, pos: Vector3) {
-		self.mesh.remesh_partial(&self.core, materials, pos);
+	pub fn remesh_pos(&mut self, materials: &VoxelMaterials, pos: Vector3, old_voxel: Voxel) {
+		self.mesh.remesh_partial(&self.core, materials, pos, old_voxel);
 	}
 
 	pub fn generate(&mut self) {
@@ -56,7 +56,7 @@ impl Chunk {
 				}
 			}
 		}
-		/* 		else if self.location.y < WIDTH_F+1.0 {
+		/* else if self.location.y < WIDTH_F+1.0 {
 			// 3d checkerboard
 			for i in 0..VOLUME {
 				self.core.voxels[i] = ((i % 2 

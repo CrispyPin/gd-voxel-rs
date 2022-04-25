@@ -4,7 +4,7 @@ A WIP voxel system for Godot.
 spiritual successor to https://github.com/CrispyPin/voxel-meshing
 
 **Todo**:
-- only update surfaces that are affected by a partial refresh
+- only re-apply surfaces that were affected by a partial refresh
 - load chunks in a separate thread, closest first
 - collision/player controller
 - greedy meshing

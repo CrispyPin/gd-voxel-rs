@@ -16,7 +16,7 @@ type Loc = (i32, i32, i32);
 
 enum MeshUpdate {
 	Full(Loc),
-	Partial(Loc, Vector3),
+	Partial(Loc, Vector3, Voxel),
 }
 
 
@@ -62,8 +62,8 @@ impl VoxelWorld {
 		for op in self.chunk_update_queue.iter() {
 			let start_time = Instant::now();
 			match op {
-				MeshUpdate::Full(loc) => self.chunks.get_mut(loc).unwrap().mesh_full(&self.materials),
-				MeshUpdate::Partial(loc, pos) => self.chunks.get_mut(loc).unwrap().mesh_partial(&self.materials, *pos),
+				MeshUpdate::Full(loc) => self.chunks.get_mut(loc).unwrap().remesh(&self.materials),
+				MeshUpdate::Partial(loc, pos, old_voxel) => self.chunks.get_mut(loc).unwrap().remesh_pos(&self.materials, *pos, *old_voxel),
 			}
 			if PRINT_MESH_TIMES {
 				godot_print!("remesh took: {}ms", start_time.elapsed().as_micros() as f64 / 1000.0);
@@ -113,11 +113,11 @@ impl VoxelWorld {
 		let loc = chunk_loc(pos);
 		self.load_or_generate(_owner, loc);
 		let chunk = self.get_chunk(loc);
-		if chunk.is_some() {
-			let chunk = chunk.unwrap();
+		if let Some(chunk) = chunk {
 			let pos = local_pos(pos);
+			let old_voxel = chunk.get_voxel(pos);
 			chunk.set_voxel(pos, voxel);
-			self.chunk_update_queue.push(MeshUpdate::Partial(key(loc), pos));
+			self.chunk_update_queue.push(MeshUpdate::Partial(key(loc), pos, old_voxel));
 		}
 	}
 

@@ -24,6 +24,7 @@ const QUAD_OFFSETS: [usize; 6] = [0, 1, 2, 2, 3, 0];
 
 pub struct ChunkMesh {
 	surfaces: Vec<Surface>,
+	surface_types: Vec<Voxel>,
 	array_mesh: Ref<ArrayMesh, Shared>,
 }
 
@@ -41,6 +42,7 @@ impl ChunkMesh {
 	pub fn new() -> Self {
 		Self {
 			surfaces: Vec::new(),
+			surface_types: Vec::new(),
 			array_mesh: ArrayMesh::new().into_shared(),
 		}
 	}
@@ -66,26 +68,34 @@ impl ChunkMesh {
 		self.apply(materials);
 	}
 
-	pub fn remesh_partial(&mut self, core: &ChunkCore, materials: &VoxelMaterials, pos: Vector3) {
-		// remove affected quads
-		for s in self.surfaces.iter_mut() {
-			s.remove_around(pos);
-		}
-
+	pub fn remesh_partial(&mut self, core: &ChunkCore, materials: &VoxelMaterials, pos: Vector3, old_voxel: Voxel) {
 		let voxel = core.get_voxel_unsafe(pos);
 
+		let mut adjacent_voxels = Vec::new();
+		let mut affected_surfaces = vec![self.ensure_surface(voxel), self.ensure_surface(old_voxel)];
+		
+		for face in 0..6 {
+			let v = core.get_voxel(pos - NORMALS[face]);
+			adjacent_voxels.push(v);
+			affected_surfaces.push(self.ensure_surface(v));
+		}
+
+		// remove affected quads
+		for surf_i in affected_surfaces.iter().filter(|&i| *i != usize::MAX) {
+			self.surfaces[*surf_i].remove_quads_in_bound(pos, pos + Vector3::ONE);
+		}
+
 		if voxel != EMPTY {
-			let surf_i = self.ensure_surface(voxel);
+			let surf_i = affected_surfaces[0];
 			self.surfaces[surf_i].allocate_batch(6, 6);
 			self.add_cube(pos, surf_i, core);
 		}
 		else { // set faces for surrounding voxels; essentially an inverted version of the other case
 			for face in 0..6 {
-				let normal = NORMALS[face];
-				let other_pos = pos - normal;
-				let other_voxel = core.get_voxel(other_pos);
+				let other_voxel = adjacent_voxels[face];
 				if  other_voxel != EMPTY {
-					let surf_i = self.ensure_surface(other_voxel);
+					let other_pos = pos - NORMALS[face];
+					let surf_i = affected_surfaces[face + 2];
 					self.surfaces[surf_i].allocate_batch(6, 6);
 
 					let mut verts = [Vector3::ZERO; 4];
@@ -114,18 +124,23 @@ impl ChunkMesh {
 	}
 	
 	/// ensures a surface exists for the voxel type and returns its index
+	/// if the requested voxel type is air, usize::MAX is returned instead
 	fn ensure_surface(&mut self, voxel: Voxel) -> usize {
+		if voxel == EMPTY {
+			return usize::MAX;
+		}
 		let index = self.get_surface_index(voxel);
 		if index.is_none() {
 			self.surfaces.push(Surface::new(voxel));
+			self.surface_types.push(voxel);
 			return self.surfaces.len() - 1;
 		}
 		index.unwrap()
 	}
 
 	fn get_surface_index(&self, voxel: Voxel) -> Option<usize> {
-		for (i, surface) in self.surfaces.iter().enumerate() {
-			if surface.voxel_type == voxel {
+		for (i, v) in self.surface_types.iter().enumerate() {
+			if *v == voxel {
 				return Some(i);
 			}
 		}
@@ -150,6 +165,7 @@ impl ChunkMesh {
 			}
 			else {
 				self.surfaces.remove(surf_i);
+				self.surface_types.remove(surf_i);
 			}
 		}
 	}
@@ -167,10 +183,7 @@ impl Surface {
 		}
 	}
 
-	fn remove_around(&mut self, pos: Vector3) {
-		let pos_min = pos;
-		let pos_max = pos + Vector3::ONE;
-
+	fn remove_quads_in_bound(&mut self, pos_min: Vector3, pos_max: Vector3) {
 		let mut quad_i = 0;
 		while quad_i < self.quad_count {
 			if (0..4).all(|i| 
