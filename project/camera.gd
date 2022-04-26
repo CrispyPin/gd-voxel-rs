@@ -1,13 +1,14 @@
 extends Camera
 
-export var speed = 10
+export var speed_base = 10
+export var speed_mod = 5.0
 export var sensitivity_h = 1.0
 export var sensitivity_v = 1.0
-var vel
+
 var paused := false
+var speed_current: float
 
 func _ready():
-	vel = Vector3(0,1,0)
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 func _input(event):
@@ -19,6 +20,10 @@ func _input(event):
 		rotate_y(angle_y)
 
 func _physics_process(delta):
+	speed_current = speed_base
+	if Input.is_key_pressed(KEY_SHIFT):
+		speed_current *= speed_mod
+
 	if Input.is_action_just_pressed("esc"):
 		paused = !paused
 		if paused:
@@ -43,6 +48,6 @@ func _physics_process(delta):
 	if Input.is_key_pressed(KEY_E):
 		dir += Vector3(0,1,0)
 
-	vel = dir.normalized() * speed
+	var vel = dir.normalized() * speed_current
 
 	translate(vel*delta)
