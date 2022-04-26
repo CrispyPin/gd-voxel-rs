@@ -1,6 +1,6 @@
 use gdnative::prelude::*;
-use gdnative::api::OpenSimplexNoise;
 use crate::common::*;
+use crate::terrain::*;
 
 pub struct ChunkCore {
 	pub voxels: [Voxel; VOLUME],
@@ -8,19 +8,20 @@ pub struct ChunkCore {
 
 impl ChunkCore {
 	#[inline]
-	pub fn new(pos: Vector3, rng: &Ref<OpenSimplexNoise, Unique>) -> Self {
-		rng.set_octaves(5);
+	pub fn new(pos: Vector3, terrain_gen: &TerrainGenerator) -> Self {
 		let mut new_core = Self {voxels: [0; VOLUME]};
-		if pos.y > WIDTH_F * 3.0 {
+		if pos.y > WIDTH_F * 4.0 {
 			return new_core;
 		}
-		if pos.y < WIDTH_F * -3.0 {
+		if pos.y < WIDTH_F * -4.0 {
 			return Self {voxels: [1; VOLUME]};
 		}
 
 		for x in 0..WIDTH {
 			for z in 0..WIDTH {
-				let height = Self::heightmap(rng, pos, x, z);
+				let world_x = x as f64 + pos.x as f64;
+				let world_z = z as f64 + pos.z as f64;
+				let height = terrain_gen.height(world_x, world_z) as f32;
 				for y in 0..WIDTH {
 					let pos_y = y as f32 + pos.y;
 					if  pos_y < height {
@@ -36,11 +37,6 @@ impl ChunkCore {
 			}
 		}
 		new_core
-	}
-
-	fn heightmap(rng: &Ref<OpenSimplexNoise, Unique>, chunk_pos: Vector3, x: usize, z: usize) -> f32 {
-		let world_xz = Vector2::new(chunk_pos.x + x as f32, chunk_pos.z + z as f32);
-		rng.get_noise_2dv(world_xz) as f32 * 32.0
 	}
 
 	#[inline]

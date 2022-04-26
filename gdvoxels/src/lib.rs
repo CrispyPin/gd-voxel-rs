@@ -4,6 +4,7 @@ mod world;
 mod chunk;
 mod common;
 mod materials;
+mod terrain;
 
 use world::*;
 

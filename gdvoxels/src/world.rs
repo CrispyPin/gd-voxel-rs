@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::time::Instant;
 use gdnative::api::MeshInstance;
-use gdnative::api::OpenSimplexNoise;
 use gdnative::prelude::*;
 
 use crate::common::*;
 use crate::chunk::*;
 use crate::materials::*;
+use crate::terrain::*;
 
 const PRINT_MESH_TIMES: bool = false;
 
@@ -33,7 +33,7 @@ pub struct VoxelWorld {
 	chunks: HashMap<Loc, Chunk>,
 	chunk_update_queue: Vec<MeshUpdate>,
 	materials: VoxelMaterials,
-	rng: Ref<OpenSimplexNoise, Unique>,
+	terrain_gen: TerrainGenerator,
 }
 
 
@@ -47,7 +47,7 @@ impl VoxelWorld {
 			load_distance: 2,
 			auto_load: true,
 			player_pos: Vector3::ZERO,
-			rng: OpenSimplexNoise::new(),
+			terrain_gen: TerrainGenerator::new(0),
 		}
 	}
 
@@ -161,7 +161,7 @@ impl VoxelWorld {
 
 	fn create_chunk(&mut self, owner: &Node, loc: Vector3) {
 		let mesh = MeshInstance::new();
-		let new_chunk = Chunk::new(loc * WIDTH_F, &self.rng);
+		let new_chunk = Chunk::new(loc * WIDTH_F, &self.terrain_gen);
 
 		mesh.set_mesh(new_chunk.get_mesh());
 		mesh.set_translation(loc * WIDTH_F);

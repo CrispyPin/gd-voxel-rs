@@ -1,10 +1,11 @@
-use gdnative::api::{ArrayMesh, OpenSimplexNoise};
+use gdnative::api::ArrayMesh;
 use gdnative::prelude::*;
 
 mod mesh;
 mod core;
 
 use crate::common::*;
+use crate::terrain::*;
 use crate::materials::VoxelMaterials;
 use self::mesh::*;
 use self::core::*;
@@ -16,9 +17,9 @@ pub struct Chunk {
 
 
 impl Chunk {
-	pub fn new(location: Vector3, rng: &Ref<OpenSimplexNoise, Unique>) -> Self {
+	pub fn new(location: Vector3, terrain_gen: &TerrainGenerator) -> Self {
 		Self {
-			core: ChunkCore::new(location, rng),
+			core: ChunkCore::new(location, terrain_gen),
 			mesh: ChunkMesh::new(),
 		}
 	}
