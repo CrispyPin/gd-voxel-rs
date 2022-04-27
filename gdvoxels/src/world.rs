@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::time::Instant;
-use gdnative::api::MeshInstance;
+use std::sync::mpsc::{self, Sender, Receiver};
+use std::thread;
 use gdnative::prelude::*;
+use gdnative::api::MeshInstance;
 
 use crate::common::*;
 use crate::chunk::*;
@@ -31,36 +33,59 @@ pub struct VoxelWorld {
 	#[property]
 	player_pos: Vector3,
 	chunks: HashMap<Loc, Chunk>,
+	chunks_in_progress: Vec<Loc>,
+	generated_chunks: Receiver<Chunk>,
+	generate_queue_send: Sender<Vector3>,
 	chunk_update_queue: Vec<MeshUpdate>,
 	materials: VoxelMaterials,
-	terrain_gen: TerrainGenerator,
+	// terrain_gen: TerrainGenerator,
 }
 
 
 #[methods]
 impl VoxelWorld {
 	fn new(_owner: &Node) -> Self {
+		let (generated_chunks_send, generated_chunks) = mpsc::channel();
+		let (generate_queue_send, generate_queue_recv) = mpsc::channel();
+
+		
+		thread::Builder::new().name("chunk-generator".to_string()).spawn(move || {
+			let materials = VoxelMaterials::new();
+			let terrain_gen = TerrainGenerator::new(0);
+			loop {
+				let loc = generate_queue_recv.recv().unwrap();
+
+				let mut new_chunk = Chunk::new(loc * WIDTH_F, &terrain_gen);
+				new_chunk.remesh(&materials);
+				generated_chunks_send.send(new_chunk).unwrap();
+			}
+		}).unwrap();
+
 		Self {
 			chunks: HashMap::new(),
+			chunks_in_progress: Vec::new(),
 			chunk_update_queue: Vec::new(),
 			materials: VoxelMaterials::new(),
 			load_distance: 2,
 			auto_load: true,
 			player_pos: Vector3::ZERO,
-			terrain_gen: TerrainGenerator::new(0),
+			generated_chunks,
+			generate_queue_send,
 		}
 	}
 
 	#[export]
-	fn _ready(&mut self, owner: &Node) {
-		self.load_near(owner);
+	fn _ready(&mut self, _owner: &Node) {
+		self.load_near();
 	}
 
 	#[export]
 	fn _process(&mut self, owner: &Node, _delta: f32) {
 		if self.auto_load {
-			self.load_near(owner);
+			self.load_near();
 		}
+
+		self.finish_create_chunks(owner);
 		
 		for op in self.chunk_update_queue.iter() {
 			let start_time = Instant::now();
@@ -114,7 +139,7 @@ impl VoxelWorld {
 	#[export]
 	fn set_voxel(&mut self, _owner: &Node, pos: Vector3, voxel: Voxel) {
 		let loc = chunk_loc(pos);
-		self.load_or_generate(_owner, loc);
+		self.load_or_generate(loc);
 		let chunk = self.get_chunk(loc);
 		if let Some(chunk) = chunk {
 			let pos = local_pos(pos);
@@ -136,44 +161,61 @@ impl VoxelWorld {
 	}
 
 	/// load chunks around player pos
-	fn load_near(&mut self, owner: &Node) {
+	fn load_near(&mut self) {
 		let center_chunk = chunk_loc(self.player_pos);
-		let radius = self.load_distance as i32;
-		let range = -radius..(radius + 1);
-		for x in range.clone() {
-			 for y in range.clone() {
-				for z in range.clone() {
-					let loc = center_chunk + ivec3(x, y, z);
-					self.load_or_generate(owner, loc);
-				}
-			 } 
+		
+		// bad way of doing increasing cubes for loading
+		for radius in 0..(self.load_distance as i32 + 1) {
+			let range = -radius..(radius + 1);
+			for x in range.clone() {
+				for y in range.clone() {
+					for z in range.clone() {
+						let loc = center_chunk + ivec3(x, y, z);
+						self.load_or_generate(loc);
+					}
+				} 
+			}
 		}
 	}
 
 	/// if chunk at loc is not already loaded, generate a new one
 	/// (todo) load from disk if it exists instead of generating
-	fn load_or_generate(&mut self, owner: &Node, loc: Vector3) {
-		if self.chunk_is_loaded(loc) {
+	fn load_or_generate(&mut self, loc: Vector3) {
+		if self.chunk_is_loaded(loc) || self.chunk_is_loading(loc) {
 			return;
 		}
-		self.create_chunk(owner, loc);
+		self.begin_create_chunk(loc);
 	}
 
-	fn create_chunk(&mut self, owner: &Node, loc: Vector3) {
-		let mesh = MeshInstance::new();
-		let new_chunk = Chunk::new(loc * WIDTH_F, &self.terrain_gen);
+	fn begin_create_chunk(&mut self, loc: Vector3) {
+		// godot_print!("creating {:?}", loc);
+		self.chunks_in_progress.push(key(loc));
+		self.generate_queue_send.send(loc).unwrap();
+	}
 
-		mesh.set_mesh(new_chunk.get_mesh());
-		mesh.set_translation(loc * WIDTH_F);
-		mesh.set_name(format!("Chunk{:?}", key(loc)));
-		owner.add_child(mesh, false);
-		
-		self.chunks.insert(key(loc), new_chunk);
-		self.chunk_update_queue.push(MeshUpdate::Full(key(loc)));
+	fn finish_create_chunks(&mut self, owner: &Node) {
+		while let Ok(new_chunk) = self.generated_chunks.try_recv() {
+			let k = key(new_chunk.position / WIDTH_F);
+			// godot_print!("Chunk Generated! {:?}", k);
+
+			let mesh = MeshInstance::new();
+			mesh.set_mesh(new_chunk.get_mesh());
+			mesh.set_translation(new_chunk.position);
+			mesh.set_name(format!("Chunk{:?}", k));
+			owner.add_child(mesh, false);
+			
+			self.chunks.insert(k, new_chunk);
+			self.chunks_in_progress.remove(0);
+
+		}
 	}
 
 	fn chunk_is_loaded(&self, loc: Vector3) -> bool {
 		self.chunks.contains_key(&key(loc))
+	}
+
+	fn chunk_is_loading(&self, loc: Vector3) -> bool {
+		self.chunks_in_progress.contains(&key(loc))
 	}
 
 	fn get_chunk(&mut self, loc: Vector3) -> Option<&mut Chunk> {

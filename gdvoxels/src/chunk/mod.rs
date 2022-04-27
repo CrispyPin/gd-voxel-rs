@@ -12,15 +12,17 @@ use self::core::*;
 
 pub struct Chunk {
 	pub core: ChunkCore,
-	mesh: ChunkMesh
+	mesh: ChunkMesh,
+	pub position: Vector3,
 }
 
 
 impl Chunk {
-	pub fn new(location: Vector3, terrain_gen: &TerrainGenerator) -> Self {
+	pub fn new(position: Vector3, terrain_gen: &TerrainGenerator) -> Self {
 		Self {
-			core: ChunkCore::new(location, terrain_gen),
+			core: ChunkCore::new(position, terrain_gen),
 			mesh: ChunkMesh::new(),
+			position,
 		}
 	}
 

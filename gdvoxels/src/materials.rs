@@ -30,11 +30,12 @@ impl VoxelMaterials {
 			let path = format!("res://addons/voxel-engine/materials/voxels/{}.material", voxel.name());
 			if resource_loader.exists(&path, "ShaderMaterial") {
 				let mat = resource_loader
-					.load(path, "ShaderMaterial", false)
+					.load(&path, "ShaderMaterial", false)
 					.unwrap()
 					.cast::<ShaderMaterial>()
 					.unwrap();
 				self.mats.insert(voxel, mat);
+				godot_print!("loaded material: {}", &path);
 			}
 		}
 	}
