@@ -2,9 +2,12 @@ use gdnative::prelude::*;
 use crate::common::*;
 use crate::terrain::*;
 
+
+#[derive(Clone)]
 pub struct ChunkCore {
 	pub voxels: [Voxel; VOLUME],
 }
+
 
 impl ChunkCore {
 	#[inline]
