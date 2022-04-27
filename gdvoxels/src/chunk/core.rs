@@ -5,19 +5,19 @@ use crate::terrain::*;
 
 #[derive(Clone)]
 pub struct ChunkCore {
-	pub voxels: [Voxel; VOLUME],
+	pub voxels: Box<[Voxel]>,
 }
 
 
 impl ChunkCore {
 	#[inline]
 	pub fn new(pos: Vector3, terrain_gen: &TerrainGenerator) -> Self {
-		let mut new_core = Self {voxels: [0; VOLUME]};
+		let mut new_core = Self {voxels: vec![0u8; VOLUME].into_boxed_slice()};
 		if pos.y > WIDTH_F * 4.0 {
 			return new_core;
 		}
 		if pos.y < WIDTH_F * -4.0 {
-			return Self {voxels: [1; VOLUME]};
+			return new_core;
 		}
 
 		for x in 0..WIDTH {

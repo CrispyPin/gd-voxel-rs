@@ -15,7 +15,7 @@ func _ready():
 
 func _process(delta):
 	t_since_update += delta
-	if t_since_update >= 1:
+	if t_since_update >= 0.3:
 		world.set_player_pos(player.translation)
 		t_since_update = 0
 	debugtext.text = "FPS: " + str(Engine.get_frames_per_second())

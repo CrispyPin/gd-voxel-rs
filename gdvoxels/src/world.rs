@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet};
-use std::time::Instant;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread::{self, JoinHandle};
@@ -10,8 +9,6 @@ use crate::common::*;
 use crate::chunk::*;
 use crate::materials::*;
 use crate::terrain::*;
-
-const PRINT_MESH_TIMES: bool = false;
 
 /// Represents a chunk location
 /// 
