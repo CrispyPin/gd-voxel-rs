@@ -1,5 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
+use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread::{self, JoinHandle};
 use gdnative::prelude::*;
@@ -18,23 +19,13 @@ const PRINT_MESH_TIMES: bool = false;
 type Loc = (i32, i32, i32);
 
 enum MeshCommand {
-	Full(ChunkRemeshPriority),
+	Generate(Chunk),
 	Exit,
 }
 
 enum GeneratorCommand {
-	Generate(NewChunkPriority),
+	Generate(Vector3),
 	Exit,
-}
-
-struct NewChunkPriority {
-	loc: Vector3,
-	distance: i32,
-}
-
-struct ChunkRemeshPriority {
-	chunk: Chunk,
-	distance: i32,
 }
 
 
@@ -45,12 +36,11 @@ pub struct VoxelWorld {
 	load_distance: u16,
 	#[property]
 	auto_load: bool,
-	#[property]
-	player_pos: Vector3,
+	player_loc: Arc<Mutex<Vector3>>,
 	chunks: HashMap<Loc, Chunk>,
-	materials: VoxelMaterials,
+	materials: Arc<VoxelMaterials>,
 
-	chunks_in_progress: Vec<Loc>,
+	chunks_in_progress: HashSet<Loc>,
 	gen_queue: Sender<GeneratorCommand>,
 	mesh_queue: Sender<MeshCommand>,
 	finished_chunks_recv: Receiver<Chunk>,
@@ -66,16 +56,17 @@ impl VoxelWorld {
 		let (finished_chunks, finished_chunks_recv) = mpsc::channel();
 		let (mesh_queue, mesh_queue_recv) = mpsc::channel();
 
-		let materials = VoxelMaterials::new();		
-		let gen_thread_handle = terrain_thread(gen_queue_recv, mesh_queue.clone());
-		let mesh_thread_handle = mesh_thread(materials.clone(), mesh_queue_recv, finished_chunks);
+		let player_loc = Arc::new(Mutex::new(Vector3::ZERO));
+		let materials = Arc::new(VoxelMaterials::new());
+		let gen_thread_handle = terrain_thread(gen_queue_recv, mesh_queue.clone(), player_loc.clone());
+		let mesh_thread_handle = mesh_thread(materials.clone(), mesh_queue_recv, finished_chunks, player_loc.clone());
 
 		Self {
 			chunks: HashMap::new(),
-			chunks_in_progress: Vec::new(),
+			chunks_in_progress: HashSet::new(),
 			load_distance: 2,
 			auto_load: true,
-			player_pos: Vector3::ZERO,
+			player_loc,
 			gen_queue,
 			finished_chunks_recv,
 			mesh_queue,
@@ -98,6 +89,13 @@ impl VoxelWorld {
 		self.mesh_queue.send(MeshCommand::Exit).unwrap();
 		self.mesh_thread_handle.take().map(JoinHandle::join);
 		self.gen_thread_handle.take().map(JoinHandle::join);
+	}
+
+	#[export]
+	fn set_player_pos(&mut self, _owner: &Node, new_pos: Vector3) {
+		let new_loc = chunk_loc(new_pos);
+		let mut loc = self.player_loc.lock().unwrap();
+		*loc = new_loc;
 	}
 
 	#[export]
@@ -171,7 +169,7 @@ impl VoxelWorld {
 
 	/// load chunks around player pos
 	fn load_near(&mut self) {
-		let center_chunk = chunk_loc(self.player_pos);
+		let center_chunk = *self.player_loc.lock().unwrap();
 		
 		// bad way of doing increasing cubes for loading
 		for radius in 0..(self.load_distance as i32 + 1) {
@@ -198,10 +196,8 @@ impl VoxelWorld {
 
 	fn begin_create_chunk(&mut self, loc: Vector3) {
 		// godot_print!("creating {:?}", loc);
-		self.chunks_in_progress.push(key(loc));
-		let distance = loc - self.player_pos / WIDTH_F;
-		let distance = distance.length_squared() as i32;
-		self.gen_queue.send(GeneratorCommand::Generate(NewChunkPriority {loc, distance})).unwrap();
+		self.chunks_in_progress.insert(key(loc));
+		self.gen_queue.send(GeneratorCommand::Generate(loc)).unwrap();
 	}
 
 	fn collect_chunks(&mut self, owner: &Node) {
@@ -216,7 +212,7 @@ impl VoxelWorld {
 			owner.add_child(mesh, false);
 			
 			self.chunks.insert(k, new_chunk);
-			self.chunks_in_progress.remove(0);
+			self.chunks_in_progress.remove(&k);
 		}
 	}
 
@@ -234,7 +230,11 @@ impl VoxelWorld {
 	}
 }
 
-fn terrain_thread(gen_queue_recv: Receiver<GeneratorCommand>, mesh_queue_terrain: Sender<MeshCommand>) -> JoinHandle<()> {
+fn terrain_thread(
+	gen_queue_recv: Receiver<GeneratorCommand>,
+	mesh_queue_terrain: Sender<MeshCommand>,
+	player_pos: Arc<Mutex<Vector3>>
+) -> JoinHandle<()> {
 	thread::Builder::new().name("terrain".to_string()).spawn(move || {
 		let terrain_gen = TerrainGenerator::new(0);
 		let mut queue = Vec::new();
@@ -242,37 +242,44 @@ fn terrain_thread(gen_queue_recv: Receiver<GeneratorCommand>, mesh_queue_terrain
 			while let Ok(cmd) = gen_queue_recv.try_recv() {
 				match cmd {
 					GeneratorCommand::Exit => break 'mainloop,
-					GeneratorCommand::Generate(data) => queue.push(data),
+					GeneratorCommand::Generate(pos) => queue.push(pos),
 				}
 			}
-			// sort so lowest distance is at the end
-			queue.sort_by(|a, b| b.distance.cmp(&a.distance));
+			// sort so closest chunk is at the end
+			let player_loc = *player_pos.lock().unwrap();
+			queue.sort_by(|a, b| b.distance_squared_to(player_loc).partial_cmp(&a.distance_squared_to(player_loc)).unwrap());
 
-			if let Some(data) = queue.pop() {
-				let new_chunk = Chunk::new(data.loc * WIDTH_F, &terrain_gen);
-				mesh_queue_terrain.send(MeshCommand::Full(ChunkRemeshPriority {chunk: new_chunk, distance: data.distance})).unwrap();
+			if let Some(loc) = queue.pop() {
+				let new_chunk = Chunk::new(loc * WIDTH_F, &terrain_gen);
+				mesh_queue_terrain.send(MeshCommand::Generate(new_chunk)).unwrap();
 				
 			}
 		}
 	}).unwrap()
 }
 
-fn mesh_thread(materials: VoxelMaterials, mesh_queue_recv: Receiver<MeshCommand>, finished_chunks: Sender<Chunk>) -> JoinHandle<()>{
+fn mesh_thread(
+	materials: Arc<VoxelMaterials>,
+	mesh_queue_recv: Receiver<MeshCommand>,
+	finished_chunks: Sender<Chunk>,
+	player_loc: Arc<Mutex<Vector3>>
+) -> JoinHandle<()>{
 	thread::Builder::new().name("mesh".to_string()).spawn(move || {
 		let mut queue = Vec::new();
 		'mainloop: loop {
 			while let Ok(cmd) = mesh_queue_recv.try_recv() {
 				match cmd {
 					MeshCommand::Exit => break 'mainloop,
-					MeshCommand::Full(data) => queue.push(data),
+					MeshCommand::Generate(chunk) => queue.push(chunk),
 				}
 			}
-			// sort so lowest distance is at the end
-			queue.sort_by(|a, b| b.distance.cmp(&a.distance));
+			// sort so closest chunk is at the end
+			let player = *player_loc.lock().unwrap() * WIDTH_F;
+			queue.sort_by(|a, b| b.position.distance_squared_to(player).partial_cmp(&a.position.distance_squared_to(player)).unwrap());
 
-			if let Some(mut data) = queue.pop() {
-				data.chunk.remesh(&materials);
-				finished_chunks.send(data.chunk).unwrap();
+			if let Some(mut chunk) = queue.pop() {
+				chunk.remesh(&materials);
+				finished_chunks.send(chunk).unwrap();
 			}
 		}
 	}).unwrap()

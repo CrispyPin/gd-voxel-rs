@@ -7,12 +7,17 @@ onready var indicator = $"/root/Main/HighlightBox"
 onready var debugtext = $"/root/Main/DebugUI/DEBUGTEXT"
 var vtype := 1
 
+var t_since_update := 0.0
+
 func _ready():
 #	world.set_voxel(Vector3(3,3,3), 1)
 	pass
 
-func _process(_delta):
-	world.player_pos = player.translation
+func _process(delta):
+	t_since_update += delta
+	if t_since_update >= 1:
+		world.set_player_pos(player.translation)
+		t_since_update = 0
 	debugtext.text = "FPS: " + str(Engine.get_frames_per_second())
 	debugtext.text += "\nforward: " + str((forward() * 100).round() / 100)
 	debugtext.text += "\npos: " + str(player.translation.floor())
