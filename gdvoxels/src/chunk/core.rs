@@ -1,45 +1,26 @@
 use gdnative::prelude::*;
+
 use crate::common::*;
-use crate::terrain::*;
 
 
-#[derive(Clone)]
 pub struct ChunkCore {
-	pub voxels: Box<[Voxel]>,
+	pub voxels: Box<[Voxel; VOLUME]>,
 }
 
 
 impl ChunkCore {
-	#[inline]
-	pub fn new(pos: Vector3, terrain_gen: &TerrainGenerator) -> Self {
-		let mut new_core = Self {voxels: vec![0u8; VOLUME].into_boxed_slice()};
-		if pos.y > WIDTH_F * 4.0 {
-			return new_core;
+	pub fn new() -> Self {
+		Self {
+			// create array on the heap
+			voxels: vec![0u8; VOLUME].into_boxed_slice().try_into().unwrap()
 		}
-		if pos.y < WIDTH_F * -4.0 {
-			return new_core;
-		}
+	}
 
-		for x in 0..WIDTH {
-			for z in 0..WIDTH {
-				let world_x = x as f64 + pos.x as f64;
-				let world_z = z as f64 + pos.z as f64;
-				let height = terrain_gen.height(world_x, world_z) as f32;
-				for y in 0..WIDTH {
-					let pos_y = y as f32 + pos.y;
-					if  pos_y < height {
-						new_core.set_voxel(Vector3::new(x as f32, y as f32, z as f32), 1);
-					}
-					else if pos_y < height + 2.0 {
-						new_core.set_voxel(Vector3::new(x as f32, y as f32, z as f32), 2);
-					}
-					else if pos_y < height + 3.0 {
-						new_core.set_voxel(Vector3::new(x as f32, y as f32, z as f32), 3);
-					}
-				}
-			}
+	#[allow(unused)]
+	pub fn new_filled(v: Voxel) -> Self {
+		Self {
+			voxels: vec![v; VOLUME].into_boxed_slice().try_into().unwrap()
 		}
-		new_core
 	}
 
 	#[inline]

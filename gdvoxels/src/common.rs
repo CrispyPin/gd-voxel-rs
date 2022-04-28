@@ -1,4 +1,5 @@
-use gdnative::{prelude::*, core_types::Axis};
+use gdnative::prelude::*;
+use gdnative::core_types::Axis;
 
 pub const WIDTH: usize = 32;
 pub const AREA: usize = WIDTH * WIDTH;

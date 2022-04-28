@@ -5,7 +5,6 @@ spiritual successor to https://github.com/CrispyPin/voxel-meshing
 
 **Todo**:
 - only re-apply surfaces that were affected by a partial refresh
-- load chunks in a separate thread, closest first
 - collision/player controller
 - greedy meshing
 - handle voxels with alpha

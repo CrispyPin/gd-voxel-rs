@@ -2,25 +2,24 @@ use gdnative::api::ArrayMesh;
 use gdnative::prelude::*;
 
 mod mesh;
-mod core;
+pub mod core;
 
 use crate::common::*;
-use crate::terrain::*;
-use crate::materials::VoxelMaterials;
+use crate::materials::MaterialList;
 use self::mesh::*;
 use self::core::*;
 
 pub struct Chunk {
-	pub core: ChunkCore,
+	core: ChunkCore,
 	mesh: ChunkMesh,
 	pub position: Vector3,
 }
 
 
 impl Chunk {
-	pub fn new(position: Vector3, terrain_gen: &TerrainGenerator) -> Self {
+	pub fn new(position: Vector3, core: ChunkCore) -> Self {
 		Self {
-			core: ChunkCore::new(position, terrain_gen),
+			core,
 			mesh: ChunkMesh::new(),
 			position,
 		}
@@ -30,11 +29,11 @@ impl Chunk {
 		self.mesh.array_mesh()
 	}
 
-	pub fn remesh(&mut self, materials: &VoxelMaterials) {
+	pub fn remesh(&mut self, materials: &MaterialList) {
 		self.mesh.remesh_full(&self.core, materials);
 	}
 
-	pub fn remesh_pos(&mut self, materials: &VoxelMaterials, pos: Vector3, old_voxel: Voxel) {
+	pub fn remesh_pos(&mut self, materials: &MaterialList, pos: Vector3, old_voxel: Voxel) {
 		self.mesh.remesh_partial(&self.core, materials, pos, old_voxel);
 	}
 

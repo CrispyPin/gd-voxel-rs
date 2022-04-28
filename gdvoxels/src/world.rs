@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread::{self, JoinHandle};
@@ -9,6 +9,10 @@ use crate::common::*;
 use crate::chunk::*;
 use crate::materials::*;
 use crate::terrain::*;
+
+/// How often the terrain and mesh threads re-sort their queues by distance to player
+/// 1 or 2 works best, higher values end up with a lot of fragmentation when moving fast
+const CHUNK_QUEUE_SORT_FREQ: u8 = 2;
 
 /// Represents a chunk location
 /// 
@@ -35,9 +39,9 @@ pub struct VoxelWorld {
 	auto_load: bool,
 	player_loc: Arc<Mutex<Vector3>>,
 	chunks: HashMap<Loc, Chunk>,
-	materials: Arc<VoxelMaterials>,
+	materials: Arc<MaterialList>,
 
-	chunks_in_progress: HashSet<Loc>,
+	chunks_in_progress: Vec<Loc>,
 	gen_queue: Sender<GeneratorCommand>,
 	mesh_queue: Sender<MeshCommand>,
 	finished_chunks_recv: Receiver<Chunk>,
@@ -54,13 +58,13 @@ impl VoxelWorld {
 		let (mesh_queue, mesh_queue_recv) = mpsc::channel();
 
 		let player_loc = Arc::new(Mutex::new(Vector3::ZERO));
-		let materials = Arc::new(VoxelMaterials::new());
+		let materials = Arc::new(MaterialList::new());
 		let gen_thread_handle = terrain_thread(gen_queue_recv, mesh_queue.clone(), player_loc.clone());
 		let mesh_thread_handle = mesh_thread(materials.clone(), mesh_queue_recv, finished_chunks, player_loc.clone());
 
 		Self {
 			chunks: HashMap::new(),
-			chunks_in_progress: HashSet::new(),
+			chunks_in_progress: Vec::new(),
 			load_distance: 2,
 			auto_load: true,
 			player_loc,
@@ -193,7 +197,7 @@ impl VoxelWorld {
 
 	fn begin_create_chunk(&mut self, loc: Vector3) {
 		// godot_print!("creating {:?}", loc);
-		self.chunks_in_progress.insert(key(loc));
+		self.chunks_in_progress.push(key(loc));
 		self.gen_queue.send(GeneratorCommand::Generate(loc)).unwrap();
 	}
 
@@ -209,7 +213,12 @@ impl VoxelWorld {
 			owner.add_child(mesh, false);
 			
 			self.chunks.insert(k, new_chunk);
-			self.chunks_in_progress.remove(&k);
+			for i in 0..self.chunks_in_progress.len() {
+				if self.chunks_in_progress[i] == k {
+					self.chunks_in_progress.remove(i);
+					break;
+				}
+			}
 		}
 	}
 
@@ -233,8 +242,9 @@ fn terrain_thread(
 	player_pos: Arc<Mutex<Vector3>>
 ) -> JoinHandle<()> {
 	thread::Builder::new().name("terrain".to_string()).spawn(move || {
-		let terrain_gen = TerrainGenerator::new(0);
+		let terrain_gen = TerrainGenerator::new(42);
 		let mut queue = Vec::new();
+		let mut since_sorting = CHUNK_QUEUE_SORT_FREQ;
 		'mainloop: loop {
 			while let Ok(cmd) = gen_queue_recv.try_recv() {
 				match cmd {
@@ -242,27 +252,32 @@ fn terrain_thread(
 					GeneratorCommand::Generate(pos) => queue.push(pos),
 				}
 			}
-			// sort so closest chunk is at the end
-			let player_loc = *player_pos.lock().unwrap();
-			queue.sort_by(|a, b| b.distance_squared_to(player_loc).partial_cmp(&a.distance_squared_to(player_loc)).unwrap());
+			if since_sorting == CHUNK_QUEUE_SORT_FREQ {
+				since_sorting = 0;
+				// sort so closest chunk is at the end
+				let player_loc = *player_pos.lock().unwrap();
+				queue.sort_by(|a, b| b.distance_squared_to(player_loc).partial_cmp(&a.distance_squared_to(player_loc)).unwrap());
+			}
+			since_sorting += 1;
 
 			if let Some(loc) = queue.pop() {
-				let new_chunk = Chunk::new(loc * WIDTH_F, &terrain_gen);
+				let pos = loc * WIDTH_F;
+				let new_chunk = Chunk::new(pos, terrain_gen.generate(pos));
 				mesh_queue_terrain.send(MeshCommand::Generate(new_chunk)).unwrap();
-				
 			}
 		}
 	}).unwrap()
 }
 
 fn mesh_thread(
-	materials: Arc<VoxelMaterials>,
+	materials: Arc<MaterialList>,
 	mesh_queue_recv: Receiver<MeshCommand>,
 	finished_chunks: Sender<Chunk>,
 	player_loc: Arc<Mutex<Vector3>>
 ) -> JoinHandle<()>{
 	thread::Builder::new().name("mesh".to_string()).spawn(move || {
 		let mut queue = Vec::new();
+		let mut since_sorting = CHUNK_QUEUE_SORT_FREQ;
 		'mainloop: loop {
 			while let Ok(cmd) = mesh_queue_recv.try_recv() {
 				match cmd {
@@ -270,9 +285,13 @@ fn mesh_thread(
 					MeshCommand::Generate(chunk) => queue.push(chunk),
 				}
 			}
-			// sort so closest chunk is at the end
-			let player = *player_loc.lock().unwrap() * WIDTH_F;
-			queue.sort_by(|a, b| b.position.distance_squared_to(player).partial_cmp(&a.position.distance_squared_to(player)).unwrap());
+			if since_sorting == CHUNK_QUEUE_SORT_FREQ {
+				since_sorting = 0;
+				// sort so closest chunk is at the end
+				let player = *player_loc.lock().unwrap() * WIDTH_F;
+				queue.sort_by(|a, b| b.position.distance_squared_to(player).partial_cmp(&a.position.distance_squared_to(player)).unwrap());
+			}
+			since_sorting += 1;
 
 			if let Some(mut chunk) = queue.pop() {
 				chunk.remesh(&materials);

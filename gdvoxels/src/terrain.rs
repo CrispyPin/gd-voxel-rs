@@ -1,6 +1,9 @@
 use gdnative::prelude::*;
 use gdnative::api::OpenSimplexNoise;
 
+use crate::chunk::core::*;
+use crate::common::*;
+
 type Noise = Ref<OpenSimplexNoise, Unique>;
 
 pub struct TerrainGenerator {
@@ -40,6 +43,38 @@ impl TerrainGenerator {
 
 		self.mountain_detail.set_period(32.0);
 		self.mountain_detail.set_octaves(5);
+	}
+
+	pub fn generate(&self, pos: Vector3) -> ChunkCore {
+		let mut new_core = ChunkCore::new();
+
+		if pos.y > WIDTH_F * 4.0 {
+			return new_core;
+		}
+		if pos.y < WIDTH_F * -4.0 {
+			return new_core;
+		}
+
+		for x in 0..WIDTH {
+			for z in 0..WIDTH {
+				let world_x = x as f64 + pos.x as f64;
+				let world_z = z as f64 + pos.z as f64;
+				let height = self.height(world_x, world_z) as f32;
+				for y in 0..WIDTH {
+					let pos_y = y as f32 + pos.y;
+					if  pos_y < height {
+						new_core.set_voxel(Vector3::new(x as f32, y as f32, z as f32), 1);
+					}
+					else if pos_y < height + 2.0 {
+						new_core.set_voxel(Vector3::new(x as f32, y as f32, z as f32), 2);
+					}
+					else if pos_y < height + 3.0 {
+						new_core.set_voxel(Vector3::new(x as f32, y as f32, z as f32), 3);
+					}
+				}
+			}
+		}
+		new_core
 	}
 
 	pub fn height(&self, x: f64, y: f64) -> f64 {

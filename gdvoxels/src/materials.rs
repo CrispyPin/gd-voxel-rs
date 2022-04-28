@@ -8,12 +8,12 @@ use crate::common::*;
 
 const DEFAULT_PATH: &str = "res://addons/voxel-engine/materials/default.material";
 
-pub struct VoxelMaterials {
+pub struct MaterialList {
 	mats: HashMap<Voxel, Ref<ShaderMaterial, Shared>>,
 	default: Ref<ShaderMaterial, Shared>,
 }
 
-impl VoxelMaterials {
+impl MaterialList {
 	pub fn new() -> Self{
 		let mut instance = Self {
 			mats: HashMap::new(),

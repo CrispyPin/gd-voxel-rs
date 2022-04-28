@@ -3,7 +3,7 @@ use gdnative::api::{ArrayMesh, Mesh};
 
 use crate::common::*;
 use crate::chunk::core::ChunkCore;
-use crate::materials::VoxelMaterials;
+use crate::materials::MaterialList;
 
 pub const NORMALS: [Vector3; 6] = [
 	ivec3(1, 0, 0), ivec3(-1, 0, 0),
@@ -49,7 +49,7 @@ impl ChunkMesh {
 	}
 	
 	/// fast but suboptimal mesh
-	pub fn remesh_full(&mut self, core: &ChunkCore, materials: &VoxelMaterials) {
+	pub fn remesh_full(&mut self, core: &ChunkCore, materials: &MaterialList) {
 		for s in self.surfaces.iter_mut() {
 			s.clear();
 		}
@@ -65,14 +65,14 @@ impl ChunkMesh {
 		self.apply(materials);
 	}
 
-	pub fn remesh_partial(&mut self, core: &ChunkCore, materials: &VoxelMaterials, pos: Vector3, old_voxel: Voxel) {
+	pub fn remesh_partial(&mut self, core: &ChunkCore, materials: &MaterialList, pos: Vector3, old_voxel: Voxel) {
 		let voxel = core.get_voxel_unsafe(pos);
 
 		let mut adjacent_voxels = Vec::new();
 		let mut affected_surfaces = vec![self.ensure_surface(voxel), self.ensure_surface(old_voxel)];
 
-		for face in 0..6 {
-			let v = core.get_voxel(pos - NORMALS[face]);
+		for normal in NORMALS {
+			let v = core.get_voxel(pos - normal);
 			adjacent_voxels.push(v);
 			affected_surfaces.push(self.ensure_surface(v));
 		}
@@ -150,7 +150,7 @@ impl ChunkMesh {
 		None
 	}
 
-	fn apply(&mut self, materials: &VoxelMaterials) {
+	fn apply(&mut self, materials: &MaterialList) {
 		for s in self.surfaces.iter_mut() {
 			s.trim();
 		}
