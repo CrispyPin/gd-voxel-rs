@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread::{self, JoinHandle};
+use std::time::Instant;
 use gdnative::prelude::*;
 use gdnative::api::MeshInstance;
 
@@ -18,6 +19,10 @@ const CHUNK_QUEUE_SORT_FREQ: u8 = 2;
 /// 
 /// Loc(1,2,3) correspsonds to the chunk at (32, 64, 96) assuming a chunk size of 32
 type Loc = (i32, i32, i32);
+
+fn chunk_name(loc: Loc) -> String {
+	format!("Chunk{:?}", loc)
+}
 
 enum MeshCommand {
 	Generate(Chunk),
@@ -103,6 +108,7 @@ impl VoxelWorld {
 	fn _process(&mut self, owner: &Node, _delta: f32) {
 		if self.auto_load {
 			self.load_near();
+			self.unload_far(owner);
 		}
 
 		self.collect_chunks(owner);
@@ -186,6 +192,36 @@ impl VoxelWorld {
 		}
 	}
 
+	/// unload chunks far from player
+	fn unload_far(&mut self, owner: &Node) {
+		let player_pos = *self.player_loc.lock().unwrap();
+		
+		let mut to_unload = Vec::new();
+		for (loc, chunk) in self.chunks.iter() {
+			let delta = chunk_loc(chunk.position) - player_pos;
+			let delta = delta.abs();
+			let dist = delta.x.max(delta.y).max(delta.z);
+			if dist > self.load_distance as f32 + 1.0 {
+				to_unload.push(*loc);
+			}
+		}
+		for loc in to_unload {
+			self.unload(owner, loc);
+		}
+	}
+
+	fn unload(&mut self, owner: &Node, loc: Loc) {
+		let path = chunk_name(loc);
+		unsafe {
+			owner
+			.get_node(path)
+			.unwrap()
+			.assume_safe()
+			.queue_free()
+		};
+		self.chunks.remove(&loc);
+	}
+
 	/// if chunk at loc is not already loaded, generate a new one
 	/// (todo) load from disk if it exists instead of generating
 	fn load_or_generate(&mut self, loc: Vector3) {
@@ -202,6 +238,7 @@ impl VoxelWorld {
 	}
 
 	fn collect_chunks(&mut self, owner: &Node) {
+		let start = Instant::now();
 		while let Ok(new_chunk) = self.finished_chunks_recv.try_recv() {
 			let k = key(new_chunk.position / WIDTH_F);
 			// godot_print!("Chunk Generated! {:?}", k);
@@ -209,7 +246,7 @@ impl VoxelWorld {
 			let mesh = MeshInstance::new();
 			mesh.set_mesh(new_chunk.get_mesh());
 			mesh.set_translation(new_chunk.position);
-			mesh.set_name(format!("Chunk{:?}", k));
+			mesh.set_name(chunk_name(k));
 			owner.add_child(mesh, false);
 			
 			self.chunks.insert(k, new_chunk);
@@ -218,6 +255,9 @@ impl VoxelWorld {
 					self.chunks_in_progress.remove(i);
 					break;
 				}
+			}
+			if start.elapsed().as_millis() > 5 {
+				break;
 			}
 		}
 	}
