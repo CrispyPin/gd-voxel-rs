@@ -11,7 +11,7 @@ bg_color = Color( 0, 0, 0, 0.490196 )
 [node name="Main" type="Node"]
 
 [node name="VoxelWorld" parent="." instance=ExtResource( 1 )]
-load_distance = 10
+load_distance = 12
 auto_load = true
 
 [node name="Sun" type="DirectionalLight" parent="."]
@@ -29,7 +29,8 @@ material/0 = null
 [node name="Camera" parent="." instance=ExtResource( 2 )]
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 12, 1 )
 near = 0.1
-speed_mod = 30.0
+far = 8192.0
+speed_mod = 15.0
 
 [node name="Crosshair" type="TextureRect" parent="."]
 anchor_left = 0.5

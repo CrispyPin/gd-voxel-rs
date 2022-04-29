@@ -45,23 +45,23 @@ impl TerrainGenerator {
 		self.mountain_detail.set_octaves(5);
 	}
 
-	pub fn generate(&self, pos: Vector3) -> ChunkCore {
+	pub fn generate(&self, wpos: Vector3) -> ChunkCore {
 		let mut new_core = ChunkCore::new();
 
-		if pos.y > WIDTH_F * 4.0 {
+		if wpos.y > WIDTH_F * 4.0 {
 			return new_core;
 		}
-		if pos.y < WIDTH_F * -4.0 {
+		if wpos.y < WIDTH_F * -4.0 {
 			return new_core;
 		}
 
 		for x in 0..WIDTH {
 			for z in 0..WIDTH {
-				let world_x = x as f64 + pos.x as f64;
-				let world_z = z as f64 + pos.z as f64;
+				let world_x = x as f64 + wpos.x as f64;
+				let world_z = z as f64 + wpos.z as f64;
 				let height = self.height(world_x, world_z) as f32;
 				for y in 0..WIDTH {
-					let pos_y = y as f32 + pos.y;
+					let pos_y = y as f32 + wpos.y;
 					if  pos_y < height {
 						new_core.set_voxel(Vector3::new(x as f32, y as f32, z as f32), 1);
 					}

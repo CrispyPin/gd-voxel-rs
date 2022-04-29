@@ -4,7 +4,6 @@ use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
 use gdnative::prelude::*;
-use gdnative::api::MeshInstance;
 
 use crate::common::*;
 use crate::chunk::*;
@@ -15,25 +14,22 @@ use crate::terrain::*;
 /// 1 or 2 works best, higher values end up with a lot of fragmentation when moving fast
 const CHUNK_QUEUE_SORT_FREQ: u8 = 2;
 
-/// Represents a chunk location
-/// 
-/// Loc(1,2,3) correspsonds to the chunk at (32, 64, 96) assuming a chunk size of 32
-type Loc = (i32, i32, i32);
-
-fn chunk_name(loc: Loc) -> String {
+fn chunk_name(loc: ChunkLoc) -> String {
 	format!("Chunk{:?}", loc)
 }
 
 enum MeshCommand {
 	Generate(Chunk),
+	Cancel(ChunkLoc),
 	Exit,
 }
 
+/// Generate is a locv
 enum GeneratorCommand {
 	Generate(Vector3),
+	Cancel(ChunkLoc),
 	Exit,
 }
-
 
 #[derive(NativeClass)]
 #[inherit(Node)]
@@ -43,10 +39,9 @@ pub struct VoxelWorld {
 	#[property]
 	auto_load: bool,
 	player_loc: Arc<Mutex<Vector3>>,
-	chunks: HashMap<Loc, Chunk>,
+	chunks: HashMap<ChunkLoc, Option<Chunk>>,
 	materials: Arc<MaterialList>,
 
-	chunks_in_progress: Vec<Loc>,
 	gen_queue: Sender<GeneratorCommand>,
 	mesh_queue: Sender<MeshCommand>,
 	finished_chunks_recv: Receiver<Chunk>,
@@ -69,7 +64,6 @@ impl VoxelWorld {
 
 		Self {
 			chunks: HashMap::new(),
-			chunks_in_progress: Vec::new(),
 			load_distance: 2,
 			auto_load: true,
 			player_loc,
@@ -99,7 +93,7 @@ impl VoxelWorld {
 
 	#[export]
 	fn set_player_pos(&mut self, _owner: &Node, new_pos: Vector3) {
-		let new_loc = chunk_loc(new_pos);
+		let new_loc = wpos_to_locv(new_pos);
 		let mut loc = self.player_loc.lock().unwrap();
 		*loc = new_loc;
 	}
@@ -108,16 +102,15 @@ impl VoxelWorld {
 	fn _process(&mut self, owner: &Node, _delta: f32) {
 		if self.auto_load {
 			self.load_near();
-			self.unload_far(owner);
+			self.unload_far();
 		}
-
 		self.collect_chunks(owner);
 	}
 
 	/// casts ray through world, sees unloaded chunks as empty
 	/// max_len is clamped to 0.001..65536.0
 	#[export]
-	fn cast_ray(&mut self, owner: &Node, source: Vector3, dir: Vector3, max_len: f32) -> RayResult {
+	fn cast_ray(&mut self, owner: &Node, source: Vector3, dir: Vector3, max_len: f32) -> Ray {
 		let dir = dir.normalized();
 		let max_len = max_len.clamp(0.001, 65536.0);
 		let stepped_dir = step(0.0, dir);
@@ -128,7 +121,7 @@ impl VoxelWorld {
 			let voxel = self.get_voxel(owner, ray_pos);
 			if voxel != EMPTY {
 				let normal = calc_normal(ray_pos);
-				return RayResult::hit(ray_pos, normal, voxel, ray_len);
+				return Ray::hit(ray_pos, normal, voxel, ray_len);
 			}
 			
 			let pos_in_voxel = fract(ray_pos);
@@ -147,16 +140,17 @@ impl VoxelWorld {
 			axis.vec() * centered.sign()
 		}
 
-		RayResult::miss(source + dir * max_len, max_len)
+		Ray::miss(source + dir * max_len, max_len)
 	}
 
 	#[export]
 	fn set_voxel(&mut self, _owner: &Node, pos: Vector3, voxel: Voxel) {
-		let loc = chunk_loc(pos);
+		let loc = wpos_to_loc(pos);
+		
 		if self.chunk_is_loaded(loc) {
 			let materials = self.materials.clone();
-			let chunk = self.get_chunk(loc).unwrap();
-			let pos = local_pos(pos);
+			let chunk = self.get_chunk_mut_unsafe(loc).unwrap();
+			let pos = wpos_to_vposv(pos);
 			let old_voxel = chunk.get_voxel(pos);
 			chunk.set_voxel(pos, voxel);
 			chunk.remesh_pos(&materials, pos, old_voxel);
@@ -165,9 +159,10 @@ impl VoxelWorld {
 
 	#[export]
 	fn get_voxel(&mut self, _owner: &Node, pos: Vector3) -> Voxel{
-		let loc = chunk_loc(pos);
-		if let Some(chunk) = self.get_chunk(loc) {
-			chunk.get_voxel(local_pos(pos))
+		let loc = wpos_to_loc(pos);
+		if self.chunk_is_loaded(loc) {
+			let chunk = self.get_chunk_unsafe(loc).unwrap();
+			chunk.get_voxel(wpos_to_vposv(pos))
 		}
 		else {
 			EMPTY
@@ -176,6 +171,7 @@ impl VoxelWorld {
 
 	/// load chunks around player pos
 	fn load_near(&mut self) {
+		let start = Instant::now();
 		let center_chunk = *self.player_loc.lock().unwrap();
 		
 		// bad way of doing increasing cubes for loading
@@ -190,89 +186,126 @@ impl VoxelWorld {
 				} 
 			}
 		}
+		let t = start.elapsed().as_millis();
+		if t > 15 {
+			godot_print!("chunk load took {} ms", t);
+		}
 	}
 
 	/// unload chunks far from player
-	fn unload_far(&mut self, owner: &Node) {
-		let player_pos = *self.player_loc.lock().unwrap();
+	fn unload_far(&mut self) {
+		let start = Instant::now();
+
+		let player_loc = *self.player_loc.lock().unwrap();
 		
 		let mut to_unload = Vec::new();
+		let mut to_cancel = Vec::new();
 		for (loc, chunk) in self.chunks.iter() {
-			let delta = chunk_loc(chunk.position) - player_pos;
+			let delta = loc_to_locv(*loc) - player_loc;
 			let delta = delta.abs();
 			let dist = delta.x.max(delta.y).max(delta.z);
 			if dist > self.load_distance as f32 + 1.0 {
-				to_unload.push(*loc);
+				if chunk.is_some() {
+					to_unload.push(*loc);
+				}
+				else {
+					to_cancel.push(*loc);
+				}
 			}
+			
 		}
 		for loc in to_unload {
-			self.unload(owner, loc);
+			self.unload(loc);
+		}
+		for loc in to_cancel {
+			self.chunks.remove(&loc);
+			self.cancel_generation(loc);
+		}
+		let t = start.elapsed().as_millis();
+		if t > 5 {
+			godot_print!("unload took {} ms", t);
 		}
 	}
 
-	fn unload(&mut self, owner: &Node, loc: Loc) {
-		let path = chunk_name(loc);
-		unsafe {
-			owner
-			.get_node(path)
-			.unwrap()
-			.assume_safe()
-			.queue_free()
-		};
-		self.chunks.remove(&loc);
+	fn unload(&mut self, loc: ChunkLoc) {
+		if self.chunk_is_loaded(loc) {
+			unsafe {
+				self.get_chunk_unsafe(loc)
+				.unwrap()
+				.node
+				.assume_safe()
+				.queue_free();
+			}
+			self.chunks.remove(&loc);
+		}
+	}
+
+	fn cancel_generation(&self, loc: ChunkLoc) {
+		// godot_print!("Cancel Gen {:?}", loc);
+		self.gen_queue.send(GeneratorCommand::Cancel(loc)).unwrap();
+		self.mesh_queue.send(MeshCommand::Cancel(loc)).unwrap();
 	}
 
 	/// if chunk at loc is not already loaded, generate a new one
 	/// (todo) load from disk if it exists instead of generating
-	fn load_or_generate(&mut self, loc: Vector3) {
+	fn load_or_generate(&mut self, locv: Vector3) {
+		let loc = locv_to_loc(locv);
 		if self.chunk_is_loaded(loc) || self.chunk_is_loading(loc) {
 			return;
 		}
 		self.begin_create_chunk(loc);
 	}
 
-	fn begin_create_chunk(&mut self, loc: Vector3) {
+	fn begin_create_chunk(&mut self, loc: ChunkLoc) {
 		// godot_print!("creating {:?}", loc);
-		self.chunks_in_progress.push(key(loc));
-		self.gen_queue.send(GeneratorCommand::Generate(loc)).unwrap();
+		self.chunks.insert(loc, None);
+		self.gen_queue.send(GeneratorCommand::Generate(loc_to_locv(loc))).unwrap();
 	}
 
 	fn collect_chunks(&mut self, owner: &Node) {
 		let start = Instant::now();
 		while let Ok(new_chunk) = self.finished_chunks_recv.try_recv() {
-			let k = key(new_chunk.position / WIDTH_F);
+			let k = locv_to_loc(new_chunk.wpos / WIDTH_F);
 			// godot_print!("Chunk Generated! {:?}", k);
 
-			let mesh = MeshInstance::new();
-			mesh.set_mesh(new_chunk.get_mesh());
-			mesh.set_translation(new_chunk.position);
+			let mesh = unsafe {new_chunk.node.assume_safe()};
+			mesh.set_mesh(new_chunk.array_mesh());
+			mesh.set_translation(new_chunk.wpos);
 			mesh.set_name(chunk_name(k));
+			let mesh = unsafe { mesh.assume_shared() };
 			owner.add_child(mesh, false);
 			
-			self.chunks.insert(k, new_chunk);
-			for i in 0..self.chunks_in_progress.len() {
-				if self.chunks_in_progress[i] == k {
-					self.chunks_in_progress.remove(i);
-					break;
-				}
-			}
+			self.chunks.insert(k, Some(new_chunk));
+
 			if start.elapsed().as_millis() > 5 {
+				// godot_print!("took 5ms to collect chunks");
 				break;
 			}
 		}
 	}
 
-	fn chunk_is_loaded(&self, loc: Vector3) -> bool {
-		self.chunks.contains_key(&key(loc))
+	fn chunk_is_loaded(&self, loc: ChunkLoc) -> bool {
+		if let Some(container) = self.chunks.get(&loc) {
+			return container.is_some();
+		}
+		false
 	}
 
-	fn chunk_is_loading(&self, loc: Vector3) -> bool {
-		self.chunks_in_progress.contains(&key(loc))
+	fn chunk_is_loading(&self, loc: ChunkLoc) -> bool {
+		if let Some(container) = self.chunks.get(&loc) {
+			return container.is_none();
+		}
+		false
 	}
 
 	#[inline]
-	fn get_chunk(&mut self, loc: Vector3) -> Option<&mut Chunk> {
-		self.chunks.get_mut(&key(loc))
+	fn get_chunk_mut_unsafe(&mut self, loc: ChunkLoc) -> Option<&mut Chunk> {
+		self.chunks.get_mut(&loc).unwrap().as_mut()
+	}
+	
+	#[inline]
+	fn get_chunk_unsafe(&self, loc: ChunkLoc) -> Option<&Chunk> {
+		self.chunks.get(&loc).unwrap().as_ref()
 	}
 }
 
@@ -289,6 +322,15 @@ fn terrain_thread(
 			while let Ok(cmd) = gen_queue_recv.try_recv() {
 				match cmd {
 					GeneratorCommand::Exit => break 'mainloop,
+					GeneratorCommand::Cancel(loc) => {
+						let locv = loc_to_locv(loc);
+						for i in 0..queue.len() {
+							if queue[i] == locv {
+								queue.remove(i);
+								break;
+							}
+						}
+					},
 					GeneratorCommand::Generate(pos) => queue.push(pos),
 				}
 			}
@@ -300,9 +342,9 @@ fn terrain_thread(
 			}
 			since_sorting += 1;
 
-			if let Some(loc) = queue.pop() {
-				let pos = loc * WIDTH_F;
-				let new_chunk = Chunk::new(pos, terrain_gen.generate(pos));
+			if let Some(locv) = queue.pop() {
+				let wpos = locv_to_wpos(locv);
+				let new_chunk = Chunk::new(wpos, terrain_gen.generate(wpos));
 				mesh_queue_terrain.send(MeshCommand::Generate(new_chunk)).unwrap();
 			}
 		}
@@ -316,12 +358,21 @@ fn mesh_thread(
 	player_loc: Arc<Mutex<Vector3>>
 ) -> JoinHandle<()>{
 	thread::Builder::new().name("mesh".to_string()).spawn(move || {
-		let mut queue = Vec::new();
+		let mut queue: Vec<Chunk> = Vec::new();
 		let mut since_sorting = CHUNK_QUEUE_SORT_FREQ;
 		'mainloop: loop {
 			while let Ok(cmd) = mesh_queue_recv.try_recv() {
 				match cmd {
 					MeshCommand::Exit => break 'mainloop,
+					MeshCommand::Cancel(loc) => {
+						let locv = loc_to_locv(loc);
+						for i in 0..queue.len() {
+							if wpos_to_locv(queue[i].wpos) == locv {
+								queue.remove(i);
+								break;
+							}
+						}
+					},
 					MeshCommand::Generate(chunk) => queue.push(chunk),
 				}
 			}
@@ -329,7 +380,7 @@ fn mesh_thread(
 				since_sorting = 0;
 				// sort so closest chunk is at the end
 				let player = *player_loc.lock().unwrap() * WIDTH_F;
-				queue.sort_by(|a, b| b.position.distance_squared_to(player).partial_cmp(&a.position.distance_squared_to(player)).unwrap());
+				queue.sort_by(|a, b| b.wpos.distance_squared_to(player).partial_cmp(&a.wpos.distance_squared_to(player)).unwrap());
 			}
 			since_sorting += 1;
 
@@ -341,13 +392,6 @@ fn mesh_thread(
 	}).unwrap()
 }
 
-
-/// convert Vector3 to i32 tuple to use as a key in chunk array
-#[inline]
-fn key(loc: Vector3) -> Loc {
-	let loc = loc.floor();
-	(loc.x as i32, loc.y as i32, loc.z as i32)
-}
 
 #[inline]
 fn fract(v: Vector3) -> Vector3 {

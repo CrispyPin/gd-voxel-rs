@@ -25,7 +25,7 @@ impl ChunkCore {
 
 	#[inline]
 	pub fn get_voxel(&self, pos: Vector3) -> Voxel {
-		if in_bounds(pos) {
+		if vposv_in_bounds(pos) {
 			return self.get_voxel_unsafe(pos);
 		}
 		EMPTY
@@ -38,7 +38,7 @@ impl ChunkCore {
 
 	#[inline]
 	pub fn set_voxel(&mut self, pos: Vector3, voxel: Voxel) {
-		if in_bounds(pos) {
+		if vposv_in_bounds(pos) {
 			self.set_voxel_unsafe(pos, voxel);
 		}
 	}

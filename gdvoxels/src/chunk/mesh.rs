@@ -58,7 +58,7 @@ impl ChunkMesh {
 			if voxel != EMPTY {
 				let surf_i = self.ensure_surface(voxel);
 				self.surfaces[surf_i].allocate_batch(6, 64);
-				let pos = index_to_pos(v_index);
+				let pos = index_to_vposv(v_index);
 				self.add_cube(pos, surf_i, core);
 			}
 		}

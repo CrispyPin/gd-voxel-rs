@@ -10,15 +10,45 @@ pub const WIDTH_F: f32 = WIDTH as f32;
 pub type Voxel = u8;
 pub const EMPTY: Voxel = 0;
 
-/// convert world coordinate to a chunk location
+/// Represents a chunk location
+/// Loc(1,2,3) correspsonds to the chunk at (32, 64, 96) assuming a chunk size of 32
+pub type ChunkLoc = (i32, i32, i32);
+
+/// Convert world coordinate to a chunk location
 #[inline]
-pub fn chunk_loc(world_pos: Vector3) -> Vector3 {
+pub fn wpos_to_locv(world_pos: Vector3) -> Vector3 {
 	(world_pos / WIDTH_F).floor()
+}
+
+#[inline]
+pub fn locv_to_wpos(locv: Vector3) -> Vector3 {
+	locv * WIDTH_F
+}
+
+#[inline]
+pub fn wpos_to_loc(world_pos: Vector3) -> ChunkLoc {
+	locv_to_loc(wpos_to_locv(world_pos))
+}
+
+/// Convert Vector3 to i32 tuple
+#[inline]
+pub fn locv_to_loc(loc: Vector3) -> ChunkLoc {
+	(loc.x as i32, loc.y as i32, loc.z as i32)
+}
+
+#[inline]
+pub fn loc_to_wpos(loc: ChunkLoc) -> Vector3 {
+	Vector3::new(loc.0 as f32, loc.1 as f32, loc.2 as f32) * WIDTH_F
+}
+
+#[inline]
+pub fn loc_to_locv(loc: ChunkLoc) -> Vector3 {
+	Vector3::new(loc.0 as f32, loc.1 as f32, loc.2 as f32)
 }
 
 /// convert world coordinate to a position within the chunk
 #[inline]
-pub fn local_pos(world_pos: Vector3) -> Vector3 {
+pub fn wpos_to_vposv(world_pos: Vector3) -> Vector3 {
 	world_pos.floor().posmod(WIDTH_F)
 }
 
@@ -29,7 +59,7 @@ pub const fn ivec3(x: i32, y: i32, z: i32) -> Vector3 {
 }
 
 #[inline]
-pub fn in_bounds(pos: Vector3) -> bool{
+pub fn vposv_in_bounds(pos: Vector3) -> bool{
 	pos.x >= 0.0 && pos.x < WIDTH_F &&
 	pos.y >= 0.0 && pos.y < WIDTH_F &&
 	pos.z >= 0.0 && pos.z < WIDTH_F
@@ -43,7 +73,7 @@ pub fn pos_to_index(pos: Vector3) -> usize {
 }
 
 #[inline]
-pub fn index_to_pos(i: usize) -> Vector3 {
+pub fn index_to_vposv(i: usize) -> Vector3 {
 	Vector3::new(
 		((i / AREA) as f32).floor(),
 		((i/WIDTH % WIDTH) as f32).floor(),
@@ -52,15 +82,15 @@ pub fn index_to_pos(i: usize) -> Vector3 {
 }
 
 #[derive(ToVariant)]
-pub struct RayResult {
-	pub hit: bool,
-	pub pos: Vector3,
-	pub normal: Vector3,
-	pub voxel: Voxel,
-	pub distance: f32,
+pub struct Ray {
+	hit: bool,
+	pos: Vector3,
+	normal: Vector3,
+	voxel: Voxel,
+	distance: f32,
 }
 
-impl RayResult {
+impl Ray {
 	pub fn hit(pos: Vector3, normal: Vector3, voxel: Voxel, distance: f32) -> Self {
 		Self {
 			hit: true,

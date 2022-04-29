@@ -1,4 +1,4 @@
-use gdnative::api::ArrayMesh;
+use gdnative::api::{ArrayMesh, MeshInstance};
 use gdnative::prelude::*;
 
 mod mesh;
@@ -9,23 +9,29 @@ use crate::materials::MaterialList;
 use self::mesh::*;
 use self::core::*;
 
+
 pub struct Chunk {
+	pub wpos: Vector3,
+	pub loc: ChunkLoc,
+	pub node: Ref<MeshInstance>,
 	core: ChunkCore,
 	mesh: ChunkMesh,
-	pub position: Vector3,
 }
 
 
 impl Chunk {
-	pub fn new(position: Vector3, core: ChunkCore) -> Self {
+	pub fn new(wpos: Vector3, core: ChunkCore) -> Self {
+		let node = unsafe { MeshInstance::new().assume_shared() };
 		Self {
+			wpos,
+			loc: wpos_to_loc(wpos),
+			node,
 			core,
 			mesh: ChunkMesh::new(),
-			position,
 		}
 	}
 
-	pub fn get_mesh(&self) -> &Ref<ArrayMesh, Shared>{
+	pub fn array_mesh(&self) -> &Ref<ArrayMesh, Shared> {
 		self.mesh.array_mesh()
 	}
 
