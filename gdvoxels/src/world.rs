@@ -38,6 +38,8 @@ pub struct VoxelWorld {
 	load_distance: u16,
 	#[property]
 	auto_load: bool,
+	#[property]
+	max_chunks_per_frame: u16,
 	player_loc: Arc<Mutex<Vector3>>,
 	chunks: HashMap<ChunkLoc, Option<Chunk>>,
 	materials: Arc<MaterialList>,
@@ -65,6 +67,7 @@ impl VoxelWorld {
 		Self {
 			chunks: HashMap::new(),
 			load_distance: 2,
+			max_chunks_per_frame: 64,
 			auto_load: true,
 			player_loc,
 			gen_queue,
@@ -100,11 +103,16 @@ impl VoxelWorld {
 
 	#[export]
 	fn _process(&mut self, owner: &Node, _delta: f32) {
+		let start = Instant::now();
 		if self.auto_load {
 			self.load_near();
 			self.unload_far();
 		}
 		self.collect_chunks(owner);
+		let t = start.elapsed().as_millis();
+		if t > 15 {
+			godot_print!("_process took {}ms", t);
+		}
 	}
 
 	/// casts ray through world, sees unloaded chunks as empty
@@ -175,17 +183,18 @@ impl VoxelWorld {
 		let center_chunk = *self.player_loc.lock().unwrap();
 		
 		// bad way of doing increasing cubes for loading
-		for radius in 0..(self.load_distance as i32 + 1) {
-			let range = -radius..(radius + 1);
-			for x in range.clone() {
-				for y in range.clone() {
-					for z in range.clone() {
-						let loc = center_chunk + ivec3(x, y, z);
-						self.load_or_generate(loc);
-					}
-				} 
-			}
+		let radius = self.load_distance as i32;
+		
+		let range = -radius..(radius + 1);
+		for x in range.clone() {
+			for y in range.clone() {
+				for z in range.clone() {
+					let loc = center_chunk + ivec3(x, y, z);
+					self.load_or_generate(loc);
+				}
+			} 
 		}
+
 		let t = start.elapsed().as_millis();
 		if t > 15 {
 			godot_print!("chunk load took {} ms", t);
@@ -263,8 +272,9 @@ impl VoxelWorld {
 	}
 
 	fn collect_chunks(&mut self, owner: &Node) {
-		let start = Instant::now();
+		let mut count = 0;
 		while let Ok(new_chunk) = self.finished_chunks_recv.try_recv() {
+			count += 1;
 			let k = locv_to_loc(new_chunk.wpos / WIDTH_F);
 			// godot_print!("Chunk Generated! {:?}", k);
 
@@ -277,8 +287,8 @@ impl VoxelWorld {
 			
 			self.chunks.insert(k, Some(new_chunk));
 
-			if start.elapsed().as_millis() > 5 {
-				// godot_print!("took 5ms to collect chunks");
+			if count > self.max_chunks_per_frame {
+				// godot_print!("limiting chunks loaded per frame");
 				break;
 			}
 		}
