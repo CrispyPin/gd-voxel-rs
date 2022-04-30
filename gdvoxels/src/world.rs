@@ -39,7 +39,9 @@ pub struct VoxelWorld {
 	#[property]
 	auto_load: bool,
 	#[property]
-	max_chunks_per_frame: u16,
+	max_chunks_loaded: u16,
+	#[property]
+	max_chunks_unloaded: u16,
 	player_loc: Arc<Mutex<Vector3>>,
 	chunks: HashMap<ChunkLoc, Option<Chunk>>,
 	materials: Arc<MaterialList>,
@@ -67,7 +69,8 @@ impl VoxelWorld {
 		Self {
 			chunks: HashMap::new(),
 			load_distance: 2,
-			max_chunks_per_frame: 64,
+			max_chunks_loaded: 32,
+			max_chunks_unloaded: 64,
 			auto_load: true,
 			player_loc,
 			gen_queue,
@@ -158,7 +161,7 @@ impl VoxelWorld {
 		if self.chunk_is_loaded(loc) {
 			let materials = self.materials.clone();
 			let chunk = self.get_chunk_mut_unsafe(loc).unwrap();
-			let pos = wpos_to_vposv(pos);
+			let pos = wpos_to_vpos(pos);
 			let old_voxel = chunk.get_voxel(pos);
 			chunk.set_voxel(pos, voxel);
 			chunk.remesh_pos(&materials, pos, old_voxel);
@@ -170,7 +173,7 @@ impl VoxelWorld {
 		let loc = wpos_to_loc(pos);
 		if self.chunk_is_loaded(loc) {
 			let chunk = self.get_chunk_unsafe(loc).unwrap();
-			chunk.get_voxel(wpos_to_vposv(pos))
+			chunk.get_voxel(wpos_to_vpos(pos))
 		}
 		else {
 			EMPTY
@@ -223,8 +226,14 @@ impl VoxelWorld {
 			}
 			
 		}
+		let mut count = 0;
 		for loc in to_unload {
 			self.unload(loc);
+			count += 1;
+			if count > self.max_chunks_unloaded {
+				// godot_print!("max unloaded chunks reached");
+				break;
+			}
 		}
 		for loc in to_cancel {
 			self.chunks.remove(&loc);
@@ -287,8 +296,8 @@ impl VoxelWorld {
 			
 			self.chunks.insert(k, Some(new_chunk));
 
-			if count > self.max_chunks_per_frame {
-				// godot_print!("limiting chunks loaded per frame");
+			if count > self.max_chunks_loaded {
+				// godot_print!("max loaded chunks reached");
 				break;
 			}
 		}
@@ -368,12 +377,13 @@ fn mesh_thread(
 	player_loc: Arc<Mutex<Vector3>>
 ) -> JoinHandle<()>{
 	thread::Builder::new().name("mesh".to_string()).spawn(move || {
-		let mut queue: Vec<Chunk> = Vec::new();
+		let mut queue = Vec::new();
 		let mut since_sorting = CHUNK_QUEUE_SORT_FREQ;
 		'mainloop: loop {
 			while let Ok(cmd) = mesh_queue_recv.try_recv() {
 				match cmd {
 					MeshCommand::Exit => break 'mainloop,
+					MeshCommand::Generate(chunk) => queue.push(chunk),
 					MeshCommand::Cancel(loc) => {
 						let locv = loc_to_locv(loc);
 						for i in 0..queue.len() {
@@ -383,7 +393,6 @@ fn mesh_thread(
 							}
 						}
 					},
-					MeshCommand::Generate(chunk) => queue.push(chunk),
 				}
 			}
 			if since_sorting == CHUNK_QUEUE_SORT_FREQ {

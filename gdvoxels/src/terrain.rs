@@ -34,6 +34,7 @@ impl TerrainGenerator {
 		self.mountain_detail.set_seed(self.seed);
 		
 		self.detail.set_octaves(4);
+		// self.detail.set_octaves(3);
 		
 		self.mountain_mask.set_octaves(1);
 		self.mountain_mask.set_period(256.0);
@@ -47,6 +48,15 @@ impl TerrainGenerator {
 
 	pub fn generate(&self, wpos: Vector3) -> ChunkCore {
 		let mut new_core = ChunkCore::new();
+
+/* 		for i in 0..VOLUME {
+			let vpos = index_to_vposv(i);
+			let mut pos = vpos + wpos;
+			pos.y /= 2.0;
+			if self.detail.get_noise_3dv(pos) > 0.2 {
+				new_core.set_voxel_unsafe(vpos, 1);
+			}
+		} */
 
 		if wpos.y > WIDTH_F * 4.0 {
 			return new_core;
@@ -77,7 +87,7 @@ impl TerrainGenerator {
 		new_core
 	}
 
-	pub fn height(&self, x: f64, y: f64) -> f64 {
+	fn height(&self, x: f64, y: f64) -> f64 {
 		self.detail.get_noise_2d(x, y) * 16.0 + 
 		sigmoid(self.mountain_mask.get_noise_2d(x, y), 8.0)
 			* (self.mountain.get_noise_2d(x, y) * 100.0

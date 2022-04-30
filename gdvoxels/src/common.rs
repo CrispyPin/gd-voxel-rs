@@ -48,7 +48,7 @@ pub fn loc_to_locv(loc: ChunkLoc) -> Vector3 {
 
 /// convert world coordinate to a position within the chunk
 #[inline]
-pub fn wpos_to_vposv(world_pos: Vector3) -> Vector3 {
+pub fn wpos_to_vpos(world_pos: Vector3) -> Vector3 {
 	world_pos.floor().posmod(WIDTH_F)
 }
 
