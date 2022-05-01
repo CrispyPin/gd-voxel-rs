@@ -34,7 +34,7 @@ bg_color = Color( 0, 0, 0, 0.490196 )
 [node name="Main" type="Node"]
 
 [node name="VoxelWorld" parent="." instance=ExtResource( 1 )]
-load_distance = 1
+load_distance = 12
 auto_load = true
 max_chunks_loaded = 48
 max_chunks_unloaded = 96

@@ -1,5 +1,4 @@
 use std::time::Instant;
-
 use gdnative::api::{ArrayMesh, MeshInstance};
 use gdnative::prelude::*;
 
@@ -40,7 +39,6 @@ impl Chunk {
 	pub fn mesh_fast(&mut self, materials: &MaterialList) {
 		let start = Instant::now();
 		self.mesh.mesh_fast(&self.core, materials);
-		// self.optimise(materials);
 		if DEBUG_MESH_TIMES {
 			let t = start.elapsed().as_micros() as f64 / 1000.0;
 			godot_print!("fast mesh took {}ms", t);
@@ -57,8 +55,7 @@ impl Chunk {
 	}
 
 	pub fn remesh_pos(&mut self, materials: &MaterialList, pos: Vector3, old_voxel: Voxel) {
-		// self.mesh.remesh_partial(&self.core, materials, pos, old_voxel);
-		self.optimise(materials);
+		self.mesh.remesh_partial(&self.core, materials, pos, old_voxel);
 	}
 
 	#[inline]

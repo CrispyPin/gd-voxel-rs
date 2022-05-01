@@ -4,11 +4,9 @@ A WIP voxel system for Godot.
 spiritual successor to https://github.com/CrispyPin/voxel-meshing
 
 **Todo**:
-- only re-apply surfaces that were affected by a partial refresh
-- collision/player controller
-- greedy meshing
+- greedy mesh after chunk is stale
 - handle voxels with alpha
-- terrain gen
+- collision/player controller
 
 **mesh optimisation**:  
 - when chunk is stale for some seconds:

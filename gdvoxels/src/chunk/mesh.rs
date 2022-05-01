@@ -28,6 +28,7 @@ pub struct ChunkMesh {
 }
 
 struct Mesher {
+	inited: bool,
 	surfaces: Vec<Surface>,
 	surface_types: Vec<Voxel>,
 }
@@ -65,7 +66,12 @@ impl ChunkMesh {
 	}
 	
 	pub fn remesh_partial(&mut self, core: &ChunkCore, materials: &MaterialList, pos: Vector3, old_voxel: Voxel) {
-		self.fast.remesh_partial(core, pos, old_voxel);
+		if !self.fast.inited {
+			self.fast.generate_fast(core)
+		}
+		else {
+			self.fast.remesh_partial(core, pos, old_voxel);
+		}
 		self.apply(materials, false);
 	}
 
@@ -85,6 +91,7 @@ impl ChunkMesh {
 impl Mesher {
 	fn new() -> Self {
 		Self {
+			inited: false,
 			surfaces: Vec::new(),
 			surface_types: Vec::new(),
 		}
@@ -128,6 +135,7 @@ impl Mesher {
 	}
 
 	pub fn generate_greedy(&mut self, core: &ChunkCore) {
+		self.inited = true;
 		for s in self.surfaces.iter_mut() {
 			s.clear();
 		}
@@ -136,19 +144,6 @@ impl Mesher {
 				let mut quad_strips = Vec::new();
 
 				for slice in 0..WIDTH {
-					/* if layer == 0{
-						let debug_quad = QuadStrip {
-							voxel: 255 - face as u8,
-							start_min: 0,
-							start_max: 0,
-							end_min: 1,
-							end_max: 1,
-							slice_start: slice,
-							slice_end: slice+1,
-							visible: true,
-						};
-						quad_strips.push(debug_quad);
-					} */
 					let mut strips_active: Vec<QuadStrip> = Vec::new();
 					let mut prev_top = 0;
 					let mut prev = 0;
@@ -314,8 +309,8 @@ impl Mesher {
 		self.trim();
 	}
 
-	#[allow(unused)]
 	fn remesh_partial(&mut self, core: &ChunkCore, pos: Vector3, old_voxel: Voxel) {
+		self.inited = true;
 		let voxel = core.get_voxel_unsafe(pos);
 
 		let mut adjacent_voxels = Vec::new();
@@ -532,42 +527,6 @@ struct QuadStrip {
 impl QuadStrip {
 	fn transformed_verts(&self, face: usize, layer: usize) -> [Vector3; 4] {
 		match face {
-	/* 		0 => [
-				uvec3(layer+1, self.slice_start, self.start_min),
-				uvec3(layer+1, self.slice_start, self.end_max),
-				uvec3(layer+1, self.slice_end, self.end_max),
-				uvec3(layer+1, self.slice_end, self.start_min),
-			],
-			1 => [
-				uvec3(layer, self.slice_end, self.start_min),
-				uvec3(layer, self.slice_end, self.end_max),
-				uvec3(layer, self.slice_start, self.end_max),
-				uvec3(layer, self.slice_start, self.start_min),
-			],
-			2 => [
-				uvec3(self.start_min, layer+1, self.slice_start),
-				uvec3(self.end_max, layer+1, self.slice_start),
-				uvec3(self.end_max, layer+1, self.slice_end),
-				uvec3(self.start_min, layer+1, self.slice_end),
-			],
-			3 => [
-				uvec3(self.start_min, layer, self.slice_end),
-				uvec3(self.end_max, layer, self.slice_end),
-				uvec3(self.end_max, layer, self.slice_start),
-				uvec3(self.start_min, layer, self.slice_start),
-			],
-			4 => [
-				uvec3(self.slice_start, self.start_min, layer+1),
-				uvec3(self.slice_start, self.end_max, layer+1),
-				uvec3(self.slice_end, self.end_max, layer+1),
-				uvec3(self.slice_end, self.start_min, layer+1),
-			],
-			5 => [
-				uvec3(self.slice_end, self.start_min, layer),
-				uvec3(self.slice_end, self.end_max, layer),
-				uvec3(self.slice_start, self.end_max, layer),
-				uvec3(self.slice_start, self.start_min, layer),
-			], */
 			0 => [
 				uvec3(layer+1, self.slice_start, self.start_max),
 				uvec3(layer+1, self.slice_start, self.end_min),

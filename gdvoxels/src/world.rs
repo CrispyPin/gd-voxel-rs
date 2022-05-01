@@ -443,7 +443,7 @@ fn mesh_thread(
 			since_sorting += 1;
 
 			if let Some(mut chunk) = queue.pop() {
-				chunk.mesh_fast(&materials);
+				chunk.optimise(&materials);
 				finished_chunks.send(chunk).unwrap();
 			}
 		}
