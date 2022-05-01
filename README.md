@@ -5,6 +5,7 @@ spiritual successor to https://github.com/CrispyPin/voxel-meshing
 
 **Todo**:
 - greedy mesh after chunk is stale
+- don't store empty chunks until they are needed
 - handle voxels with alpha
 - collision/player controller
 
