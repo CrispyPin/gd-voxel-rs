@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread::{self, JoinHandle};
-use std::time::Instant;
 use gdnative::prelude::*;
 
 use crate::common::*;
@@ -10,9 +9,6 @@ use crate::chunk::*;
 use crate::materials::*;
 use crate::terrain::*;
 
-/// How often the terrain and mesh threads re-sort their queues by distance to player
-/// 1 or 2 works best, higher values end up with a lot of fragmentation when moving fast
-const CHUNK_QUEUE_SORT_FREQ: u8 = 2;
 
 fn chunk_name(loc: ChunkLoc) -> String {
 	format!("Chunk{:?}", loc)
@@ -90,7 +86,7 @@ impl VoxelWorld {
 
 	#[export]
 	fn _quit(&mut self, _owner: &Node) {
-		godot_print!("exiting!");
+		godot_print!("Exiting!");
 		self.gen_queue.send(GeneratorCommand::Exit).unwrap();
 		self.mesh_queue.send(MeshCommand::Exit).unwrap();
 		self.mesh_thread_handle.take().map(JoinHandle::join);
@@ -106,16 +102,11 @@ impl VoxelWorld {
 
 	#[export]
 	fn _process(&mut self, owner: &Node, _delta: f32) {
-		let start = Instant::now();
 		if self.auto_load {
 			self.load_near();
 			self.unload_far();
 		}
 		self.collect_chunks(owner);
-		let t = start.elapsed().as_millis();
-		if t > 15 {
-			godot_print!("_process took {}ms", t);
-		}
 	}
 
 	/// casts ray through world, sees unloaded chunks as empty
@@ -165,7 +156,6 @@ impl VoxelWorld {
 			let old_voxel = chunk.get_voxel(pos);
 			chunk.set_voxel(pos, voxel);
 			chunk.remesh_pos(&materials, pos, old_voxel);
-			// chunk.remesh(&materials);
 		}
 	}
 
@@ -183,9 +173,7 @@ impl VoxelWorld {
 
 	/// load chunks around player pos
 	fn load_near(&mut self) {
-		let start = Instant::now();
 		let center_chunk = *self.player_loc.lock().unwrap();
-		
 		// bad way of doing increasing cubes for loading
 		let radius = self.load_distance as i32;
 		
@@ -198,17 +186,10 @@ impl VoxelWorld {
 				}
 			} 
 		}
-
-		let t = start.elapsed().as_millis();
-		if t > 15 {
-			godot_print!("chunk load took {} ms", t);
-		}
 	}
 
 	/// unload chunks far from player
 	fn unload_far(&mut self) {
-		let start = Instant::now();
-
 		let player_loc = *self.player_loc.lock().unwrap();
 		
 		let mut to_unload = Vec::new();
@@ -232,17 +213,12 @@ impl VoxelWorld {
 			self.unload(loc);
 			count += 1;
 			if count > self.max_chunks_unloaded {
-				// godot_print!("max unloaded chunks reached");
 				break;
 			}
 		}
 		for loc in to_cancel {
 			self.chunks.remove(&loc);
 			self.cancel_generation(loc);
-		}
-		let t = start.elapsed().as_millis();
-		if t > 5 {
-			godot_print!("unload took {} ms", t);
 		}
 	}
 
@@ -260,7 +236,6 @@ impl VoxelWorld {
 	}
 
 	fn cancel_generation(&self, loc: ChunkLoc) {
-		// godot_print!("Cancel Gen {:?}", loc);
 		self.gen_queue.send(GeneratorCommand::Cancel(loc)).unwrap();
 		self.mesh_queue.send(MeshCommand::Cancel(loc)).unwrap();
 	}
@@ -276,7 +251,6 @@ impl VoxelWorld {
 	}
 
 	fn begin_create_chunk(&mut self, loc: ChunkLoc) {
-		// godot_print!("creating {:?}", loc);
 		self.chunks.insert(loc, None);
 		self.gen_queue.send(GeneratorCommand::Generate(loc_to_locv(loc))).unwrap();
 	}
@@ -286,7 +260,6 @@ impl VoxelWorld {
 		while let Ok(new_chunk) = self.finished_chunks_recv.try_recv() {
 			count += 1;
 			let k = locv_to_loc(new_chunk.wpos / WIDTH_F);
-			// godot_print!("Chunk Generated! {:?}", k);
 
 			let mesh = unsafe {new_chunk.node.assume_safe()};
 			mesh.set_mesh(new_chunk.array_mesh());
@@ -298,7 +271,6 @@ impl VoxelWorld {
 			self.chunks.insert(k, Some(new_chunk));
 
 			if count > self.max_chunks_loaded {
-				// godot_print!("max loaded chunks reached");
 				break;
 			}
 		}
@@ -338,7 +310,6 @@ fn terrain_thread(
 		
 		let terrain_gen = TerrainGenerator::new(42);
 		let mut queue = Vec::new();
-		let mut since_sorting = CHUNK_QUEUE_SORT_FREQ;
 
 		'mainloop: loop {
 			if queue.is_empty() {
@@ -373,19 +344,14 @@ fn terrain_thread(
 					GeneratorCommand::Generate(pos) => queue.push(pos),
 				}
 			}
-			if since_sorting == CHUNK_QUEUE_SORT_FREQ {
-				since_sorting = 0;
-				// sort so closest chunk is at the end
-				let player_loc = *player_pos.lock().unwrap();
-				queue.sort_by(|a, b| b.distance_squared_to(player_loc).partial_cmp(&a.distance_squared_to(player_loc)).unwrap());
-			}
-			since_sorting += 1;
-
-			if let Some(locv) = queue.pop() {
-				let wpos = locv_to_wpos(locv);
-				let new_chunk = Chunk::new(wpos, terrain_gen.generate(wpos));
-				mesh_queue_terrain.send(MeshCommand::Generate(new_chunk)).unwrap();
-			}
+			// sort so closest chunk is at the end
+			let player_loc = *player_pos.lock().unwrap();
+			queue.sort_by(|a, b| a.distance_squared_to(player_loc).partial_cmp(&b.distance_squared_to(player_loc)).unwrap());
+			
+			let locv = queue.remove(0);
+			let wpos = locv_to_wpos(locv);
+			let new_chunk = Chunk::new(wpos, terrain_gen.generate(wpos));
+			mesh_queue_terrain.send(MeshCommand::Generate(new_chunk)).unwrap();
 		}
 	}).unwrap()
 }
@@ -399,7 +365,6 @@ fn mesh_thread(
 	thread::Builder::new().name("mesh".to_string()).spawn(move || {
 
 		let mut queue = Vec::new();
-		let mut since_sorting = CHUNK_QUEUE_SORT_FREQ;
 		
 		'mainloop: loop {
 			if queue.is_empty() {
@@ -434,18 +399,14 @@ fn mesh_thread(
 					}
 				}
 			}
-			if since_sorting == CHUNK_QUEUE_SORT_FREQ {
-				since_sorting = 0;
-				// sort so closest chunk is at the end
-				let player = *player_loc.lock().unwrap() * WIDTH_F;
-				queue.sort_by(|a, b| b.wpos.distance_squared_to(player).partial_cmp(&a.wpos.distance_squared_to(player)).unwrap());
-			}
-			since_sorting += 1;
+			// sort so closest chunk is at the end
+			let player = *player_loc.lock().unwrap() * WIDTH_F;
+			queue.sort_by(|a, b| a.wpos.distance_squared_to(player).partial_cmp(&b.wpos.distance_squared_to(player)).unwrap());
 
-			if let Some(mut chunk) = queue.pop() {
-				chunk.optimise(&materials);
-				finished_chunks.send(chunk).unwrap();
-			}
+			let mut chunk = queue.remove(0);
+			chunk.optimise(&materials);
+			finished_chunks.send(chunk).unwrap();
+
 		}
 	}).unwrap()
 }

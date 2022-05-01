@@ -34,7 +34,7 @@ bg_color = Color( 0, 0, 0, 0.490196 )
 [node name="Main" type="Node"]
 
 [node name="VoxelWorld" parent="." instance=ExtResource( 1 )]
-load_distance = 12
+load_distance = 32
 auto_load = true
 max_chunks_loaded = 48
 max_chunks_unloaded = 96
@@ -78,6 +78,7 @@ material/0 = SubResource( 6 )
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 12, 1 )
 near = 0.1
 far = 8192.0
+speed_mod = 15.0
 
 [node name="Crosshair" type="TextureRect" parent="."]
 anchor_left = 0.5
