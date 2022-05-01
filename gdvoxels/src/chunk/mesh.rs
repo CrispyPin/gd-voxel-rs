@@ -24,8 +24,6 @@ const QUAD_OFFSETS: [usize; 6] = [0, 1, 2, 2, 3, 0];
 pub struct ChunkMesh {
 	fast: Mesher,
 	greedy: Mesher,
-	// surfaces: Vec<Surface>,
-	// surface_types: Vec<Voxel>,
 	array_mesh: Ref<ArrayMesh, Shared>,
 }
 
@@ -46,8 +44,6 @@ struct Surface {
 impl ChunkMesh {
 	pub fn new() -> Self {
 		Self {
-			// surfaces: Vec::new(),
-			// surface_types: Vec::new(),
 			fast: Mesher::new(),
 			greedy: Mesher::new(),
 			array_mesh: ArrayMesh::new().into_shared(),
@@ -59,17 +55,17 @@ impl ChunkMesh {
 	}
 
 	pub fn mesh_fast(&mut self, core: &ChunkCore, materials: &MaterialList) {
-		self.fast.generate_fast(core, materials);
+		self.fast.generate_fast(core);
 		self.apply(materials, false);
 	}
 
 	pub fn optimise(&mut self, core: &ChunkCore, materials: &MaterialList) {
-		self.greedy.generate_greedy(core, materials);
+		self.greedy.generate_greedy(core);
 		self.apply(materials, true);
 	}
 	
 	pub fn remesh_partial(&mut self, core: &ChunkCore, materials: &MaterialList, pos: Vector3, old_voxel: Voxel) {
-		self.fast.remesh_partial(core, materials, pos, old_voxel);
+		self.fast.remesh_partial(core, pos, old_voxel);
 		self.apply(materials, false);
 	}
 
@@ -114,7 +110,7 @@ impl Mesher {
 	}
 
 	/// fast but suboptimal mesh
-	pub fn generate_fast(&mut self, core: &ChunkCore, materials: &MaterialList) {
+	pub fn generate_fast(&mut self, core: &ChunkCore) {
 		for s in self.surfaces.iter_mut() {
 			s.clear();
 		}
@@ -130,8 +126,7 @@ impl Mesher {
 		self.trim();
 	}
 
-	pub fn generate_greedy(&mut self, core: &ChunkCore, materials: &MaterialList) {
-		// for s in self.surfaces_greedy.iter_mut() {
+	pub fn generate_greedy(&mut self, core: &ChunkCore) {
 		for s in self.surfaces.iter_mut() {
 			s.clear();
 		}
@@ -227,7 +222,7 @@ impl Mesher {
 		self.trim();
 	}
 
-	fn remesh_partial(&mut self, core: &ChunkCore, materials: &MaterialList, pos: Vector3, old_voxel: Voxel) {
+	fn remesh_partial(&mut self, core: &ChunkCore, pos: Vector3, old_voxel: Voxel) {
 		let voxel = core.get_voxel_unsafe(pos);
 
 		let mut adjacent_voxels = Vec::new();

@@ -39,6 +39,7 @@ pub fn locv_to_loc(loc: Vector3) -> ChunkLoc {
 }
 
 #[inline]
+#[allow(unused)]
 pub fn loc_to_wpos(loc: ChunkLoc) -> Vector3 {
 	Vector3::new(loc.0 as f32, loc.1 as f32, loc.2 as f32) * WIDTH_F
 }
