@@ -1,6 +1,5 @@
 shader_type spatial;
 
-uniform sampler2D tex;
 
 void vertex() {
 	float norm_i = fract(VERTEX.x);
@@ -26,12 +25,9 @@ void vertex() {
 }
 
 void fragment() {
-	vec3 pos = (CAMERA_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	pos = fract(pos);
-	vec3 normal = (CAMERA_MATRIX * vec4(NORMAL, 0.0)).xyz;
-
-	// vec4 color = texture(tex, UV);
-	// ALBEDO = color.rgb * color.rgb;
+	// vec3 pos = (CAMERA_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	// pos = fract(pos);
+	// vec3 normal = (CAMERA_MATRIX * vec4(NORMAL, 0.0)).xyz;
 
 	float uv_vis = 1.0;
 	if (UV.x > 0.98 ||
