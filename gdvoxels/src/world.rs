@@ -335,10 +335,29 @@ fn terrain_thread(
 	player_pos: Arc<Mutex<Vector3>>
 ) -> JoinHandle<()> {
 	thread::Builder::new().name("terrain".to_string()).spawn(move || {
+		
 		let terrain_gen = TerrainGenerator::new(42);
 		let mut queue = Vec::new();
 		let mut since_sorting = CHUNK_QUEUE_SORT_FREQ;
+
 		'mainloop: loop {
+			if queue.is_empty() {
+				if let Ok(cmd) = gen_queue_recv.recv() {
+					match cmd {
+						GeneratorCommand::Exit => break 'mainloop,
+						GeneratorCommand::Cancel(loc) => {
+							let locv = loc_to_locv(loc);
+							for i in 0..queue.len() {
+								if queue[i] == locv {
+									queue.remove(i);
+									break;
+								}
+							}
+						},
+						GeneratorCommand::Generate(pos) => queue.push(pos),
+					}
+				}
+			}
 			while let Ok(cmd) = gen_queue_recv.try_recv() {
 				match cmd {
 					GeneratorCommand::Exit => break 'mainloop,
@@ -378,9 +397,28 @@ fn mesh_thread(
 	player_loc: Arc<Mutex<Vector3>>
 ) -> JoinHandle<()>{
 	thread::Builder::new().name("mesh".to_string()).spawn(move || {
+
 		let mut queue = Vec::new();
 		let mut since_sorting = CHUNK_QUEUE_SORT_FREQ;
+		
 		'mainloop: loop {
+			if queue.is_empty() {
+				if let Ok(cmd) = mesh_queue_recv.recv() {
+					match cmd {
+						MeshCommand::Exit => break 'mainloop,
+						MeshCommand::Generate(chunk) => queue.push(chunk),
+						MeshCommand::Cancel(loc) => {
+							let locv = loc_to_locv(loc);
+							for i in 0..queue.len() {
+								if wpos_to_locv(queue[i].wpos) == locv {
+									queue.remove(i);
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
 			while let Ok(cmd) = mesh_queue_recv.try_recv() {
 				match cmd {
 					MeshCommand::Exit => break 'mainloop,
@@ -393,7 +431,7 @@ fn mesh_thread(
 								break;
 							}
 						}
-					},
+					}
 				}
 			}
 			if since_sorting == CHUNK_QUEUE_SORT_FREQ {
