@@ -11,6 +11,7 @@ pub type Voxel = u8;
 pub const EMPTY: Voxel = 0;
 
 pub const DEBUG_UVS: bool = true;
+pub const DEBUG_MESH_TIMES: bool = false;
 
 /// Represents a chunk location
 /// Loc(1,2,3) correspsonds to the chunk at (32, 64, 96) assuming a chunk size of 32
@@ -122,6 +123,10 @@ impl Ray {
 
 pub trait VoxelData {
 	fn name(&self) -> String;
+	fn is_air(&self) -> bool;
+	fn is_surface(&self) -> bool;
+	fn is_transparent(&self) -> bool;
+	fn is_opaque(&self) -> bool;
 }
 
 impl VoxelData for Voxel {
@@ -134,6 +139,26 @@ impl VoxelData for Voxel {
 			255 => "debug".into(),
 			other => format!("{}", other),
 		}
+	}
+	
+	#[inline]
+	fn is_air(&self) -> bool {
+		*self == 0
+	}
+
+	#[inline]
+	fn is_surface(&self) -> bool {
+		*self != 0
+	}
+
+	#[inline]
+	fn is_transparent(&self) -> bool {
+		*self == 0
+	}
+
+	#[inline]
+	fn is_opaque(&self) -> bool {
+		*self != 0
 	}
 }
 

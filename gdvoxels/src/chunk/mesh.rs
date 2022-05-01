@@ -110,6 +110,7 @@ impl Mesher {
 	}
 
 	/// fast but suboptimal mesh
+	#[allow(unused)]
 	pub fn generate_fast(&mut self, core: &ChunkCore) {
 		for s in self.surfaces.iter_mut() {
 			s.clear();
@@ -130,42 +131,121 @@ impl Mesher {
 		for s in self.surfaces.iter_mut() {
 			s.clear();
 		}
-
 		for face in 0..6 {
 			for layer in 0..WIDTH {
 				let mut quad_strips = Vec::new();
 
 				for slice in 0..WIDTH {
-					let mut strip_active = false;
+					/* if layer == 0{
+						let debug_quad = QuadStrip {
+							voxel: 255 - face as u8,
+							start_min: 0,
+							start_max: 0,
+							end_min: 1,
+							end_max: 1,
+							slice_start: slice,
+							slice_end: slice+1,
+							visible: true,
+						};
+						quad_strips.push(debug_quad);
+					} */
+					let mut strips_active: Vec<QuadStrip> = Vec::new();
 					let mut prev_top = 0;
+					let mut prev = 0;
+					let mut hidden_start = 0;
 					
 					for offset in 0..(WIDTH+1) {
 						let voxel = core.get_voxel(layered_pos(face, layer, slice, offset));
 						let top = core.get_voxel(layered_pos(face, layer, slice, offset) + NORMALS[face]);
 
-						if !strip_active {
-							if voxel != EMPTY && top == EMPTY {
-								// start strip
-								strip_active = true;
-								quad_strips.push(QuadStrip::new(voxel, offset, offset + 1, WIDTH, slice, slice + 1));
+						if top.is_transparent() && prev_top.is_transparent() { // remain visible
+							if voxel != prev {
+								if !strips_active.is_empty() {
+									let mut q = strips_active.pop().unwrap();
+									q.end_max = offset;
+									q.end_min = offset;
+									quad_strips.push(q);
+								}
+								if voxel.is_surface() {
+									let new_quad = QuadStrip {
+										voxel,
+										start_min: offset,
+										start_max: offset,
+										end_min: offset+1,
+										end_max: WIDTH,
+										slice_start: slice,
+										slice_end: slice+1,
+										visible: true,
+									};
+									strips_active.push(new_quad);
+								}
 							}
 						}
-						else {
-							if top != EMPTY && prev_top == EMPTY {
-								// strip goes under blocks here
-								quad_strips.last_mut().unwrap().offset_end_min = offset;
+						else if top.is_opaque() && prev_top.is_transparent() { // enter under blocks
+							if !strips_active.is_empty() {
+								strips_active[0].end_min = offset;
 							}
-							if voxel == EMPTY && top == EMPTY {
-								// end strip
-								if prev_top == EMPTY {
-									// end of strip is exposed, so cant have variable length
-									quad_strips.last_mut().unwrap().offset_end_min = offset;
+							hidden_start = offset;
+							if voxel != prev {
+								let new_quad = QuadStrip {
+									voxel,
+									start_min: offset,
+									start_max: offset,
+									end_min: offset+1,
+									end_max: WIDTH,
+									slice_start: slice,
+									slice_end: slice+1,
+									visible: false,
+								};
+								strips_active.push(new_quad);
+							}
+						}
+						else if top.is_transparent() && prev_top.is_opaque() { // emerge from under blocks
+							let mut i = 0;
+							while i < strips_active.len() {
+								if strips_active[i].voxel == voxel {
+									strips_active[i].visible = true;
+									i += 1;
 								}
-								quad_strips.last_mut().unwrap().offset_end_max = offset;
-								strip_active = false;
+								else {
+									let mut q = strips_active.remove(i);
+									q.end_max = offset;
+									quad_strips.push(q);
+								}
+							}
+							if strips_active.is_empty() && voxel.is_surface() {
+								let new_quad = QuadStrip {
+									voxel,
+									start_min: hidden_start,
+									start_max: offset,
+									end_min: offset+1,
+									end_max: WIDTH,
+									slice_start: slice,
+									slice_end: slice+1,
+									visible: true,
+								};
+								strips_active.push(new_quad);
+							}
+						}
+						else { // remain hidden
+							if voxel != prev {
+								if !strips_active.iter().any(|q| q.voxel == voxel) {
+									let new_quad = QuadStrip {
+										voxel,
+										start_min: hidden_start,
+										start_max: offset,
+										end_min: offset+1,
+										end_max: WIDTH,
+										slice_start: slice,
+										slice_end: slice+1,
+										visible: false,
+									};
+									strips_active.push(new_quad);
+								}
 							}
 						}
 						prev_top = top;
+						prev = voxel;
 					}
 				}
 				if quad_strips.is_empty() {
@@ -178,18 +258,28 @@ impl Mesher {
 				while a < quad_strips.len() - 1 {
 					let mut main = quad_strips[a].clone();
 					let other = quad_strips[b].clone();
-					if main.slice_end == other.slice_start && main.offset_start == other.offset_start && (
-						(main.offset_end_min >= other.offset_end_min && main.offset_end_min <= other.offset_end_max) // a ends in b's range
-					|| (other.offset_end_min >= main.offset_end_min && other.offset_end_min <= main.offset_end_max) // b ends in a's range
-					) {// merge strips
+					if main.slice_end == other.slice_start && other.voxel == main.voxel && main.visible &&
+					((main.start_min >= other.start_min && main.start_min <= other.start_max) // a starts in b's range
+					|| (other.start_min >= main.start_min && other.start_min <= main.start_max)) // b starts in a's range
+					&&
+						((main.end_min >= other.end_min && main.end_min <= other.end_max) // a ends in b's range
+					|| (other.end_min >= main.end_min && other.end_min <= main.end_max)) // b ends in a's range
+					 {// merge strips
 						// new width
 						main.slice_end = other.slice_end;
 						// new valid end range
-						if other.offset_end_min > main.offset_end_min {
-							main.offset_end_min = other.offset_end_min;
+						if other.end_min > main.end_min {
+							main.end_min = other.end_min;
 						}
-						if other.offset_end_max < main.offset_end_max {
-							main.offset_end_max = other.offset_end_max;
+						if other.end_max < main.end_max {
+							main.end_max = other.end_max;
+						}
+						// new valid start range
+						if other.start_min > main.start_min {
+							main.start_min = other.start_min;
+						}
+						if other.start_max < main.start_max {
+							main.start_max = other.start_max;
 						}
 						quad_strips.remove(b);
 						quad_strips[a] = main;
@@ -210,11 +300,13 @@ impl Mesher {
 						b = a;
 					}
 				}
-				
-				// apply
-				let i = self.ensure_surface(255);
-				self.surfaces[i].resize_buffers(quad_strips.len() as i32);
+				 
 				for q in quad_strips {
+					if !q.visible || q.voxel == EMPTY {
+						continue;
+					}
+					let i = self.ensure_surface(q.voxel);
+					self.surfaces[i].allocate_batch(1, 16);
 					self.surfaces[i].add_quad(q.transformed_verts(face, layer), face);
 				}
 			}
@@ -222,6 +314,7 @@ impl Mesher {
 		self.trim();
 	}
 
+	#[allow(unused)]
 	fn remesh_partial(&mut self, core: &ChunkCore, pos: Vector3, old_voxel: Voxel) {
 		let voxel = core.get_voxel_unsafe(pos);
 
@@ -424,71 +517,92 @@ impl Surface {
 }
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct QuadStrip {
 	voxel: Voxel,
-	offset_start: usize,
-	offset_end_min: usize,
-	offset_end_max: usize,
+	start_min: usize,
+	start_max: usize,
+	end_min: usize,
+	end_max: usize,
 	slice_start: usize,
 	slice_end: usize,
+	visible: bool,
 }
 
 impl QuadStrip {
-	fn new(voxel: Voxel,
-		offset_start: usize,
-		offset_end_min: usize,
-		offset_end_max: usize,
-		slice_start: usize,
-		slice_end: usize,
-	) -> Self {
-		Self {
-			voxel,
-			offset_start,
-			offset_end_min,
-			offset_end_max,
-			slice_start,
-			slice_end,
-		}
-	}
-
 	fn transformed_verts(&self, face: usize, layer: usize) -> [Vector3; 4] {
 		match face {
-			0 => [
-				uvec3(layer+1, self.slice_start, self.offset_start),
-				uvec3(layer+1, self.slice_start, self.offset_end_min),
-				uvec3(layer+1, self.slice_end, self.offset_end_min),
-				uvec3(layer+1, self.slice_end, self.offset_start),
+	/* 		0 => [
+				uvec3(layer+1, self.slice_start, self.start_min),
+				uvec3(layer+1, self.slice_start, self.end_max),
+				uvec3(layer+1, self.slice_end, self.end_max),
+				uvec3(layer+1, self.slice_end, self.start_min),
 			],
 			1 => [
-				uvec3(layer, self.slice_end, self.offset_start),
-				uvec3(layer, self.slice_end, self.offset_end_min),
-				uvec3(layer, self.slice_start, self.offset_end_min),
-				uvec3(layer, self.slice_start, self.offset_start),
+				uvec3(layer, self.slice_end, self.start_min),
+				uvec3(layer, self.slice_end, self.end_max),
+				uvec3(layer, self.slice_start, self.end_max),
+				uvec3(layer, self.slice_start, self.start_min),
 			],
 			2 => [
-				uvec3(self.offset_start, layer+1, self.slice_start),
-				uvec3(self.offset_end_min, layer+1, self.slice_start),
-				uvec3(self.offset_end_min, layer+1, self.slice_end),
-				uvec3(self.offset_start, layer+1, self.slice_end),
+				uvec3(self.start_min, layer+1, self.slice_start),
+				uvec3(self.end_max, layer+1, self.slice_start),
+				uvec3(self.end_max, layer+1, self.slice_end),
+				uvec3(self.start_min, layer+1, self.slice_end),
 			],
 			3 => [
-				uvec3(self.offset_start, layer, self.slice_end),
-				uvec3(self.offset_end_min, layer, self.slice_end),
-				uvec3(self.offset_end_min, layer, self.slice_start),
-				uvec3(self.offset_start, layer, self.slice_start),
+				uvec3(self.start_min, layer, self.slice_end),
+				uvec3(self.end_max, layer, self.slice_end),
+				uvec3(self.end_max, layer, self.slice_start),
+				uvec3(self.start_min, layer, self.slice_start),
 			],
 			4 => [
-				uvec3(self.slice_start, self.offset_start, layer+1),
-				uvec3(self.slice_start, self.offset_end_min, layer+1),
-				uvec3(self.slice_end, self.offset_end_min, layer+1),
-				uvec3(self.slice_end, self.offset_start, layer+1),
+				uvec3(self.slice_start, self.start_min, layer+1),
+				uvec3(self.slice_start, self.end_max, layer+1),
+				uvec3(self.slice_end, self.end_max, layer+1),
+				uvec3(self.slice_end, self.start_min, layer+1),
 			],
 			5 => [
-				uvec3(self.slice_end, self.offset_start, layer),
-				uvec3(self.slice_end, self.offset_end_min, layer),
-				uvec3(self.slice_start, self.offset_end_min, layer),
-				uvec3(self.slice_start, self.offset_start, layer),
+				uvec3(self.slice_end, self.start_min, layer),
+				uvec3(self.slice_end, self.end_max, layer),
+				uvec3(self.slice_start, self.end_max, layer),
+				uvec3(self.slice_start, self.start_min, layer),
+			], */
+			0 => [
+				uvec3(layer+1, self.slice_start, self.start_max),
+				uvec3(layer+1, self.slice_start, self.end_min),
+				uvec3(layer+1, self.slice_end, self.end_min),
+				uvec3(layer+1, self.slice_end, self.start_max),
+			],
+			1 => [
+				uvec3(layer, self.slice_end, self.start_max),
+				uvec3(layer, self.slice_end, self.end_min),
+				uvec3(layer, self.slice_start, self.end_min),
+				uvec3(layer, self.slice_start, self.start_max),
+			],
+			2 => [
+				uvec3(self.start_max, layer+1, self.slice_start),
+				uvec3(self.end_min, layer+1, self.slice_start),
+				uvec3(self.end_min, layer+1, self.slice_end),
+				uvec3(self.start_max, layer+1, self.slice_end),
+			],
+			3 => [
+				uvec3(self.start_max, layer, self.slice_end),
+				uvec3(self.end_min, layer, self.slice_end),
+				uvec3(self.end_min, layer, self.slice_start),
+				uvec3(self.start_max, layer, self.slice_start),
+			],
+			4 => [
+				uvec3(self.slice_start, self.start_max, layer+1),
+				uvec3(self.slice_start, self.end_min, layer+1),
+				uvec3(self.slice_end, self.end_min, layer+1),
+				uvec3(self.slice_end, self.start_max, layer+1),
+			],
+			5 => [
+				uvec3(self.slice_end, self.start_max, layer),
+				uvec3(self.slice_end, self.end_min, layer),
+				uvec3(self.slice_start, self.end_min, layer),
+				uvec3(self.slice_start, self.start_max, layer),
 			],
 			_ => panic!("invalid face index in QuadStrip.transformed_verts")
 		}
