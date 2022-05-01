@@ -35,12 +35,17 @@ impl Chunk {
 		self.mesh.array_mesh()
 	}
 
-	pub fn remesh(&mut self, materials: &MaterialList) {
-		self.mesh.remesh_full(&self.core, materials);
+	pub fn mesh_fast(&mut self, materials: &MaterialList) {
+		self.mesh.mesh_fast(&self.core, materials);
+	}
+
+	pub fn optimise(&mut self, materials: &MaterialList) {
+		self.mesh.optimise(&self.core, materials);
 	}
 
 	pub fn remesh_pos(&mut self, materials: &MaterialList, pos: Vector3, old_voxel: Voxel) {
-		self.mesh.remesh_partial(&self.core, materials, pos, old_voxel);
+		// self.mesh.remesh_partial(&self.core, materials, pos, old_voxel);
+		self.optimise(materials);
 	}
 
 	#[inline]

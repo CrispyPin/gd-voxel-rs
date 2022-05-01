@@ -22,14 +22,22 @@ const QUAD_OFFSETS: [usize; 6] = [0, 1, 2, 2, 3, 0];
 
 
 pub struct ChunkMesh {
+	fast: Mesher,
+	greedy: Mesher,
+	// surfaces: Vec<Surface>,
+	// surface_types: Vec<Voxel>,
+	array_mesh: Ref<ArrayMesh, Shared>,
+}
+
+struct Mesher {
 	surfaces: Vec<Surface>,
 	surface_types: Vec<Voxel>,
-	array_mesh: Ref<ArrayMesh, Shared>,
 }
 
 struct Surface {
 	voxel_type: Voxel,
 	vertexes: PoolArray<Vector3>,
+	uvs: PoolArray<Vector2>,
 	quad_count: usize,
 	quad_capacity: usize,
 }
@@ -38,8 +46,10 @@ struct Surface {
 impl ChunkMesh {
 	pub fn new() -> Self {
 		Self {
-			surfaces: Vec::new(),
-			surface_types: Vec::new(),
+			// surfaces: Vec::new(),
+			// surface_types: Vec::new(),
+			fast: Mesher::new(),
+			greedy: Mesher::new(),
 			array_mesh: ArrayMesh::new().into_shared(),
 		}
 	}
@@ -47,9 +57,64 @@ impl ChunkMesh {
 	pub fn array_mesh(&self) -> &Ref<ArrayMesh, Shared> {
 		&self.array_mesh
 	}
+
+	pub fn mesh_fast(&mut self, core: &ChunkCore, materials: &MaterialList) {
+		self.fast.generate_fast(core, materials);
+		self.apply(materials, false);
+	}
+
+	pub fn optimise(&mut self, core: &ChunkCore, materials: &MaterialList) {
+		self.greedy.generate_greedy(core, materials);
+		self.apply(materials, true);
+	}
 	
+	pub fn remesh_partial(&mut self, core: &ChunkCore, materials: &MaterialList, pos: Vector3, old_voxel: Voxel) {
+		self.fast.remesh_partial(core, materials, pos, old_voxel);
+		self.apply(materials, false);
+	}
+
+	fn apply(&mut self, materials: &MaterialList, greedy: bool) {
+		let array_mesh = unsafe { self.array_mesh.assume_safe() };
+		array_mesh.clear_surfaces();
+		if greedy {
+			self.greedy.apply(&self.array_mesh, materials);
+		}
+		else {
+			self.fast.apply(&self.array_mesh, materials);
+		}
+	}
+}
+
+
+impl Mesher {
+	fn new() -> Self {
+		Self {
+			surfaces: Vec::new(),
+			surface_types: Vec::new(),
+		}
+	}
+
+	fn apply(&mut self, array_mesh: &Ref<ArrayMesh>, materials: &MaterialList) {
+		let array_mesh = unsafe { array_mesh.assume_safe() };
+
+		let mut surf_i = 0;
+		while surf_i < self.surfaces.len() {
+			let s = &self.surfaces[surf_i];
+			if s.quad_count > 0 {
+				let mesh_data = s.get_array();
+				array_mesh.add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, mesh_data, VariantArray::new_shared(), 0);
+				array_mesh.surface_set_material(surf_i as i64, materials.get(s.voxel_type));
+				surf_i += 1;
+			}
+			else {
+				self.surfaces.remove(surf_i);
+				self.surface_types.remove(surf_i);
+			}
+		}
+	}
+
 	/// fast but suboptimal mesh
-	pub fn remesh_full(&mut self, core: &ChunkCore, materials: &MaterialList) {
+	pub fn generate_fast(&mut self, core: &ChunkCore, materials: &MaterialList) {
 		for s in self.surfaces.iter_mut() {
 			s.clear();
 		}
@@ -62,10 +127,107 @@ impl ChunkMesh {
 				self.add_cube(pos, surf_i, core);
 			}
 		}
-		self.apply(materials);
+		self.trim();
 	}
 
-	pub fn remesh_partial(&mut self, core: &ChunkCore, materials: &MaterialList, pos: Vector3, old_voxel: Voxel) {
+	pub fn generate_greedy(&mut self, core: &ChunkCore, materials: &MaterialList) {
+		// for s in self.surfaces_greedy.iter_mut() {
+		for s in self.surfaces.iter_mut() {
+			s.clear();
+		}
+
+		for face in 0..6 {
+			for layer in 0..WIDTH {
+				let mut quad_strips = Vec::new();
+
+				for slice in 0..WIDTH {
+					let mut strip_active = false;
+					let mut prev_top = 0;
+					
+					for offset in 0..(WIDTH+1) {
+						let voxel = core.get_voxel(layered_pos(face, layer, slice, offset));
+						let top = core.get_voxel(layered_pos(face, layer, slice, offset) + NORMALS[face]);
+
+						if !strip_active {
+							if voxel != EMPTY && top == EMPTY {
+								// start strip
+								strip_active = true;
+								quad_strips.push(QuadStrip::new(voxel, offset, offset + 1, WIDTH, slice, slice + 1));
+							}
+						}
+						else {
+							if top != EMPTY && prev_top == EMPTY {
+								// strip goes under blocks here
+								quad_strips.last_mut().unwrap().offset_end_min = offset;
+							}
+							if voxel == EMPTY && top == EMPTY {
+								// end strip
+								if prev_top == EMPTY {
+									// end of strip is exposed, so cant have variable length
+									quad_strips.last_mut().unwrap().offset_end_min = offset;
+								}
+								quad_strips.last_mut().unwrap().offset_end_max = offset;
+								strip_active = false;
+							}
+						}
+						prev_top = top;
+					}
+				}
+				if quad_strips.is_empty() {
+					continue;
+				}
+
+				// merge quads
+				let mut a = 0;
+				let mut b = 0;
+				while a < quad_strips.len() - 1 {
+					let mut main = quad_strips[a].clone();
+					let other = quad_strips[b].clone();
+					if main.slice_end == other.slice_start && main.offset_start == other.offset_start && (
+						(main.offset_end_min >= other.offset_end_min && main.offset_end_min <= other.offset_end_max) // a ends in b's range
+					|| (other.offset_end_min >= main.offset_end_min && other.offset_end_min <= main.offset_end_max) // b ends in a's range
+					) {// merge strips
+						// new width
+						main.slice_end = other.slice_end;
+						// new valid end range
+						if other.offset_end_min > main.offset_end_min {
+							main.offset_end_min = other.offset_end_min;
+						}
+						if other.offset_end_max < main.offset_end_max {
+							main.offset_end_max = other.offset_end_max;
+						}
+						quad_strips.remove(b);
+						quad_strips[a] = main;
+					}
+					else {
+						b += 1;
+						// there is a gap between a and b in the slice width direction
+						if main.slice_end < other.slice_start {
+							// move forward
+							a += 1;
+							b = a;
+						}
+					}
+					// b is last quad
+					if b >= quad_strips.len() {
+						// move forward
+						a += 1;
+						b = a;
+					}
+				}
+				
+				// apply
+				let i = self.ensure_surface(255);
+				self.surfaces[i].resize_buffers(quad_strips.len() as i32);
+				for q in quad_strips {
+					self.surfaces[i].add_quad(q.transformed_verts(face, layer), face);
+				}
+			}
+		}
+		self.trim();
+	}
+
+	fn remesh_partial(&mut self, core: &ChunkCore, materials: &MaterialList, pos: Vector3, old_voxel: Voxel) {
 		let voxel = core.get_voxel_unsafe(pos);
 
 		let mut adjacent_voxels = Vec::new();
@@ -105,7 +267,7 @@ impl ChunkMesh {
 				}
 			}
 		}
-		self.apply(materials);
+		self.trim();
 	}
 
 	#[inline]
@@ -150,26 +312,9 @@ impl ChunkMesh {
 		None
 	}
 
-	fn apply(&mut self, materials: &MaterialList) {
+	fn trim(&mut self) {
 		for s in self.surfaces.iter_mut() {
 			s.trim();
-		}
-		let array_mesh = unsafe { self.array_mesh.assume_safe() };
-		array_mesh.clear_surfaces();
-
-		let mut surf_i = 0;
-		while surf_i < self.surfaces.len() {
-			let s = &self.surfaces[surf_i];
-			if s.quad_count > 0 {
-				let mesh_data = s.get_array();
-				array_mesh.add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, mesh_data, VariantArray::new_shared(), 0);
-				array_mesh.surface_set_material(surf_i as i64, materials.get(s.voxel_type));
-				surf_i += 1;
-			}
-			else {
-				self.surfaces.remove(surf_i);
-				self.surface_types.remove(surf_i);
-			}
 		}
 	}
 }
@@ -179,6 +324,7 @@ impl Surface {
 		Self {
 			voxel_type,
 			vertexes: PoolArray::new(),
+			uvs: PoolArray::new(),
 			quad_count: 0,
 			quad_capacity: 0,
 		}
@@ -227,6 +373,16 @@ impl Surface {
 		for v in 0..6 {
 			vertex_w[self.quad_count * 6 + v] = corners[QUAD_OFFSETS[v]] + encoded_normal;
 		}
+
+		if DEBUG_UVS {
+			let mut uv_w = self.uvs.write();
+			uv_w[self.quad_count * 6] = Vector2::new(0.0, 1.0);
+			uv_w[self.quad_count * 6 + 1] = Vector2::new(0.0, 0.0);
+			uv_w[self.quad_count * 6 + 2] = Vector2::new(1.0, 0.0);
+			uv_w[self.quad_count * 6 + 3] = Vector2::new(1.0, 0.0);
+			uv_w[self.quad_count * 6 + 4] = Vector2::new(1.0, 1.0);
+			uv_w[self.quad_count * 6 + 5] = Vector2::new(0.0, 1.0);
+		}
 		self.quad_count += 1;
 	}
 
@@ -234,6 +390,9 @@ impl Surface {
 		let mesh_data = VariantArray::new_thread_local();
 		mesh_data.resize(Mesh::ARRAY_MAX as i32);
 		mesh_data.set(Mesh::ARRAY_VERTEX as i32, &self.vertexes);
+		if DEBUG_UVS {
+			mesh_data.set(Mesh::ARRAY_TEX_UV as i32, &self.uvs);
+		}
 		unsafe { mesh_data.assume_unique().into_shared() }
 	}
 
@@ -241,6 +400,9 @@ impl Surface {
 	fn resize_buffers(&mut self, amount: i32) {
 		let vert_count = self.vertexes.len() + amount * 6;
 		self.vertexes.resize(vert_count);
+		if DEBUG_UVS {
+			self.uvs.resize(vert_count);
+		}
 		self.quad_capacity = (self.quad_capacity as i32 + amount) as usize;
 	}
 
@@ -260,5 +422,90 @@ impl Surface {
 		self.quad_count = 0;
 		self.quad_capacity = 0;
 		self.vertexes.resize(0);
+		if DEBUG_UVS {
+			self.uvs.resize(0);
+		}
+	}
+}
+
+
+#[derive(Clone)]
+struct QuadStrip {
+	voxel: Voxel,
+	offset_start: usize,
+	offset_end_min: usize,
+	offset_end_max: usize,
+	slice_start: usize,
+	slice_end: usize,
+}
+
+impl QuadStrip {
+	fn new(voxel: Voxel,
+		offset_start: usize,
+		offset_end_min: usize,
+		offset_end_max: usize,
+		slice_start: usize,
+		slice_end: usize,
+	) -> Self {
+		Self {
+			voxel,
+			offset_start,
+			offset_end_min,
+			offset_end_max,
+			slice_start,
+			slice_end,
+		}
+	}
+
+	fn transformed_verts(&self, face: usize, layer: usize) -> [Vector3; 4] {
+		match face {
+			0 => [
+				uvec3(layer+1, self.slice_start, self.offset_start),
+				uvec3(layer+1, self.slice_start, self.offset_end_min),
+				uvec3(layer+1, self.slice_end, self.offset_end_min),
+				uvec3(layer+1, self.slice_end, self.offset_start),
+			],
+			1 => [
+				uvec3(layer, self.slice_end, self.offset_start),
+				uvec3(layer, self.slice_end, self.offset_end_min),
+				uvec3(layer, self.slice_start, self.offset_end_min),
+				uvec3(layer, self.slice_start, self.offset_start),
+			],
+			2 => [
+				uvec3(self.offset_start, layer+1, self.slice_start),
+				uvec3(self.offset_end_min, layer+1, self.slice_start),
+				uvec3(self.offset_end_min, layer+1, self.slice_end),
+				uvec3(self.offset_start, layer+1, self.slice_end),
+			],
+			3 => [
+				uvec3(self.offset_start, layer, self.slice_end),
+				uvec3(self.offset_end_min, layer, self.slice_end),
+				uvec3(self.offset_end_min, layer, self.slice_start),
+				uvec3(self.offset_start, layer, self.slice_start),
+			],
+			4 => [
+				uvec3(self.slice_start, self.offset_start, layer+1),
+				uvec3(self.slice_start, self.offset_end_min, layer+1),
+				uvec3(self.slice_end, self.offset_end_min, layer+1),
+				uvec3(self.slice_end, self.offset_start, layer+1),
+			],
+			5 => [
+				uvec3(self.slice_end, self.offset_start, layer),
+				uvec3(self.slice_end, self.offset_end_min, layer),
+				uvec3(self.slice_start, self.offset_end_min, layer),
+				uvec3(self.slice_start, self.offset_start, layer),
+			],
+			_ => panic!("invalid face index in QuadStrip.transformed_verts")
+		}
+	}
+}
+
+
+fn layered_pos(face: usize, layer: usize, slice: usize, offset: usize) -> Vector3 {
+	match face {
+		0 | 1 => uvec3(layer, slice, offset),
+		2 | 3 => uvec3(offset, layer, slice),
+		4 | 5 => uvec3(slice, offset, layer),
+		_ => panic!("invalid face index for layered_pos()")
 	}
 }

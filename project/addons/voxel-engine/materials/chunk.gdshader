@@ -9,6 +9,8 @@ uniform sampler2D tex_n_y;
 uniform sampler2D tex_p_z;
 uniform sampler2D tex_n_z;
 
+uniform float disable_debug_uv;
+
 void vertex() {
 	float norm_i = fract(VERTEX.x);
 	if (norm_i < .01) {
@@ -61,8 +63,17 @@ void fragment() {
 		color = texture(tex_n_z, (1.0 - pos.xy));
 	}
 
-	ALBEDO = color.rgb * color.rgb;
-	// ALBEDO = (normal/2.0) + 0.5;
-	// ALBEDO = COLOR.rgb*COLOR.rgb;
-	// ALBEDO = vec3(0.5);
+	float uv_vis = 1.0;
+	if (UV.x > 0.98 ||
+		UV.x < 0.02 ||
+		UV.y > 0.98 ||
+		UV.y < 0.02 ||
+		abs(UV.x - UV.y) < 0.02) {
+		uv_vis = 0.5;
+	}
+	if (disable_debug_uv > 0.1) {
+		uv_vis = 1.0;
+	}
+
+	ALBEDO = color.rgb * color.rgb * uv_vis;
 }

@@ -10,6 +10,8 @@ pub const WIDTH_F: f32 = WIDTH as f32;
 pub type Voxel = u8;
 pub const EMPTY: Voxel = 0;
 
+pub const DEBUG_UVS: bool = true;
+
 /// Represents a chunk location
 /// Loc(1,2,3) correspsonds to the chunk at (32, 64, 96) assuming a chunk size of 32
 pub type ChunkLoc = (i32, i32, i32);
@@ -55,6 +57,11 @@ pub fn wpos_to_vpos(world_pos: Vector3) -> Vector3 {
 /// [i32] to [Vector3]
 #[inline]
 pub const fn ivec3(x: i32, y: i32, z: i32) -> Vector3 {
+	Vector3::new(x as f32, y as f32, z as f32)
+}
+
+#[inline]
+pub const fn uvec3(x: usize, y: usize, z: usize) -> Vector3 {
 	Vector3::new(x as f32, y as f32, z as f32)
 }
 
@@ -123,6 +130,7 @@ impl VoxelData for Voxel {
 			1 => "stone".into(),
 			2 => "dirt".into(),
 			3 => "grass".into(),
+			255 => "debug".into(),
 			other => format!("{}", other),
 		}
 	}

@@ -165,6 +165,7 @@ impl VoxelWorld {
 			let old_voxel = chunk.get_voxel(pos);
 			chunk.set_voxel(pos, voxel);
 			chunk.remesh_pos(&materials, pos, old_voxel);
+			// chunk.remesh(&materials);
 		}
 	}
 
@@ -404,7 +405,7 @@ fn mesh_thread(
 			since_sorting += 1;
 
 			if let Some(mut chunk) = queue.pop() {
-				chunk.remesh(&materials);
+				chunk.mesh_fast(&materials);
 				finished_chunks.send(chunk).unwrap();
 			}
 		}
