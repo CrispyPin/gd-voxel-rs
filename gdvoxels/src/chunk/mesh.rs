@@ -36,7 +36,6 @@ struct Mesher {
 struct Surface {
 	voxel_type: Voxel,
 	vertexes: PoolArray<Vector3>,
-	uvs: PoolArray<Vector2>,
 	quad_count: usize,
 	quad_capacity: usize,
 }
@@ -55,6 +54,7 @@ impl ChunkMesh {
 		&self.array_mesh
 	}
 
+	#[allow(unused)]
 	pub fn mesh_fast(&mut self, core: &ChunkCore, materials: &MaterialList) {
 		self.fast.generate_fast(core);
 		self.apply(materials, false);
@@ -117,7 +117,6 @@ impl Mesher {
 	}
 
 	/// fast but suboptimal mesh
-	#[allow(unused)]
 	pub fn generate_fast(&mut self, core: &ChunkCore) {
 		for s in self.surfaces.iter_mut() {
 			s.clear();
@@ -407,7 +406,6 @@ impl Surface {
 		Self {
 			voxel_type,
 			vertexes: PoolArray::new(),
-			uvs: PoolArray::new(),
 			quad_count: 0,
 			quad_capacity: 0,
 		}
@@ -452,19 +450,20 @@ impl Surface {
 	#[inline]
 	fn add_quad(&mut self, corners: [Vector3; 4], face: usize) {
 		let mut vertex_w = self.vertexes.write();
-		let encoded_normal = Vector3::new(face as f32 / 100.0 + 0.005, 0.0, 0.0);
-		for v in 0..6 {
-			vertex_w[self.quad_count * 6 + v] = corners[QUAD_OFFSETS[v]] + encoded_normal;
-		}
-
+		let encoded_normal = face as f32 / 100.0 + 0.005;
+		let offset = self.quad_count * 6;
 		if DEBUG_UVS {
-			let mut uv_w = self.uvs.write();
-			uv_w[self.quad_count * 6] = Vector2::new(0.0, 1.0);
-			uv_w[self.quad_count * 6 + 1] = Vector2::new(0.0, 0.0);
-			uv_w[self.quad_count * 6 + 2] = Vector2::new(1.0, 0.0);
-			uv_w[self.quad_count * 6 + 3] = Vector2::new(1.0, 0.0);
-			uv_w[self.quad_count * 6 + 4] = Vector2::new(1.0, 1.0);
-			uv_w[self.quad_count * 6 + 5] = Vector2::new(0.0, 1.0);
+			vertex_w[offset  ] = corners[QUAD_OFFSETS[0]] + Vector3::new(encoded_normal, 0.0, 0.01);
+			vertex_w[offset+1] = corners[QUAD_OFFSETS[1]] + Vector3::new(encoded_normal, 0.0, 0.0);
+			vertex_w[offset+2] = corners[QUAD_OFFSETS[2]] + Vector3::new(encoded_normal, 0.01, 0.0);
+			vertex_w[offset+3] = corners[QUAD_OFFSETS[3]] + Vector3::new(encoded_normal, 0.01, 0.0);
+			vertex_w[offset+4] = corners[QUAD_OFFSETS[4]] + Vector3::new(encoded_normal, 0.01, 0.01);
+			vertex_w[offset+5] = corners[QUAD_OFFSETS[5]] + Vector3::new(encoded_normal, 0.0, 0.01);
+		}
+		else {
+			for v in 0..6 {
+				vertex_w[offset + v] = corners[QUAD_OFFSETS[v]] + Vector3::new(encoded_normal, 0.0, 0.0);
+			}
 		}
 		self.quad_count += 1;
 	}
@@ -473,9 +472,6 @@ impl Surface {
 		let mesh_data = VariantArray::new_thread_local();
 		mesh_data.resize(Mesh::ARRAY_MAX as i32);
 		mesh_data.set(Mesh::ARRAY_VERTEX as i32, &self.vertexes);
-		if DEBUG_UVS {
-			mesh_data.set(Mesh::ARRAY_TEX_UV as i32, &self.uvs);
-		}
 		unsafe { mesh_data.assume_unique().into_shared() }
 	}
 
@@ -483,9 +479,6 @@ impl Surface {
 	fn resize_buffers(&mut self, amount: i32) {
 		let vert_count = self.vertexes.len() + amount * 6;
 		self.vertexes.resize(vert_count);
-		if DEBUG_UVS {
-			self.uvs.resize(vert_count);
-		}
 		self.quad_capacity = (self.quad_capacity as i32 + amount) as usize;
 	}
 
@@ -505,9 +498,6 @@ impl Surface {
 		self.quad_count = 0;
 		self.quad_capacity = 0;
 		self.vertexes.resize(0);
-		if DEBUG_UVS {
-			self.uvs.resize(0);
-		}
 	}
 }
 

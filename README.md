@@ -19,7 +19,7 @@ spiritual successor to https://github.com/CrispyPin/voxel-meshing
 - keep fast mesh in memory and revert to it if a change happens
 
 # structure
-- chunks: Hashmap<ChunkLoc, ChunkContainer>
+- chunks: Hashmap<ChunkLoc, Option<Chunk>>
 	- ChunkLoc = (i32, i32, i32)
 	- Option<Chunk>
 		- mesh: ChunkMesh

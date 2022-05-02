@@ -86,7 +86,7 @@ impl VoxelWorld {
 
 	#[export]
 	fn _quit(&mut self, _owner: &Node) {
-		godot_print!("Exiting!");
+		godot_print!("Exiting");
 		self.gen_queue.send(GeneratorCommand::Exit).unwrap();
 		self.mesh_queue.send(MeshCommand::Exit).unwrap();
 		self.mesh_thread_handle.take().map(JoinHandle::join);
@@ -353,6 +353,7 @@ fn terrain_thread(
 			let new_chunk = Chunk::new(wpos, terrain_gen.generate(wpos));
 			mesh_queue_terrain.send(MeshCommand::Generate(new_chunk)).unwrap();
 		}
+		godot_print!("Terrain thread exiting");
 	}).unwrap()
 }
 
@@ -408,6 +409,7 @@ fn mesh_thread(
 			finished_chunks.send(chunk).unwrap();
 
 		}
+		godot_print!("Mesh thread exiting");
 	}).unwrap()
 }
 

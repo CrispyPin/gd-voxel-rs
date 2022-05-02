@@ -21,6 +21,7 @@ void vertex() {
 	else {
 		NORMAL = vec3(0., 0., -1.);
 	}
+	UV2 = fract(VERTEX.zy) * 100.0;
 	VERTEX = floor(VERTEX);
 }
 
@@ -30,11 +31,11 @@ void fragment() {
 	// vec3 normal = (CAMERA_MATRIX * vec4(NORMAL, 0.0)).xyz;
 
 	float uv_vis = 1.0;
-	if (UV.x > 0.98 ||
-		UV.x < 0.02 ||
-		UV.y > 0.98 ||
-		UV.y < 0.02 ||
-		abs(UV.x - UV.y) < 0.02) {
+	if (UV2.x > 0.98 ||
+		UV2.x < 0.02 ||
+		UV2.y > 0.98 ||
+		UV2.y < 0.02 ||
+		abs(UV2.x - UV2.y) < 0.02) {
 		uv_vis = 0.5;
 	}
 	ALBEDO = vec3(uv_vis);

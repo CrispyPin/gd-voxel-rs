@@ -18,15 +18,15 @@ flags_unshaded = true
 flags_no_depth_test = true
 albedo_color = Color( 1, 0.0156863, 0.0156863, 1 )
 
-[sub_resource type="SpatialMaterial" id=5]
-flags_unshaded = true
-flags_no_depth_test = true
-albedo_color = Color( 0, 0.537255, 1, 1 )
-
 [sub_resource type="SpatialMaterial" id=6]
 flags_unshaded = true
 flags_no_depth_test = true
 albedo_color = Color( 0.196078, 0.898039, 0.0509804, 1 )
+
+[sub_resource type="SpatialMaterial" id=5]
+flags_unshaded = true
+flags_no_depth_test = true
+albedo_color = Color( 0, 0.537255, 1, 1 )
 
 [sub_resource type="StyleBoxFlat" id=1]
 bg_color = Color( 0, 0, 0, 0.490196 )
@@ -55,29 +55,28 @@ material/0 = null
 transform = Transform( 0.8, 0, 0, 0, 0.8, 0, 0, 0, 0.8, 0, 0, 0 )
 visible = false
 
-[node name="MeshInstance" type="MeshInstance" parent="HighlightBox/Axis"]
+[node name="origin" type="MeshInstance" parent="HighlightBox/Axis"]
 mesh = SubResource( 2 )
 material/0 = SubResource( 3 )
 
-[node name="MeshInstance2" type="MeshInstance" parent="HighlightBox/Axis"]
+[node name="X" type="MeshInstance" parent="HighlightBox/Axis"]
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0 )
 mesh = SubResource( 2 )
 material/0 = SubResource( 4 )
 
-[node name="MeshInstance3" type="MeshInstance" parent="HighlightBox/Axis"]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1 )
-mesh = SubResource( 2 )
-material/0 = SubResource( 5 )
-
-[node name="MeshInstance4" type="MeshInstance" parent="HighlightBox/Axis"]
+[node name="Y" type="MeshInstance" parent="HighlightBox/Axis"]
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0 )
 mesh = SubResource( 2 )
 material/0 = SubResource( 6 )
 
+[node name="Z" type="MeshInstance" parent="HighlightBox/Axis"]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1 )
+mesh = SubResource( 2 )
+material/0 = SubResource( 5 )
+
 [node name="Camera" parent="." instance=ExtResource( 2 )]
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 12, 1 )
-near = 0.1
-far = 16000.0
+far = 8192.0
 speed_mod = 15.0
 
 [node name="Crosshair" type="TextureRect" parent="."]
