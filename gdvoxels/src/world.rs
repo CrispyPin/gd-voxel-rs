@@ -95,17 +95,23 @@ impl VoxelWorld {
 
 	#[export]
 	fn set_player_pos(&mut self, _owner: &Node, new_pos: Vector3) {
+		let mut changed = false;
 		let new_loc = wpos_to_locv(new_pos);
-		let mut loc = self.player_loc.lock().unwrap();
-		*loc = new_loc;
+		{
+			let mut player_loc = self.player_loc.lock().unwrap();
+			if new_loc != *player_loc {
+				*player_loc = new_loc;
+				changed = true;
+			}
+		}
+		if changed && self.auto_load {
+			self.load_near();
+			self.unload_far();
+		}
 	}
 
 	#[export]
 	fn _process(&mut self, owner: &Node, _delta: f32) {
-		if self.auto_load {
-			self.load_near();
-			self.unload_far();
-		}
 		self.collect_chunks(owner);
 	}
 
@@ -174,10 +180,8 @@ impl VoxelWorld {
 	/// load chunks around player pos
 	fn load_near(&mut self) {
 		let center_chunk = *self.player_loc.lock().unwrap();
-		// bad way of doing increasing cubes for loading
 		let radius = self.load_distance as i32;
 		
-		// let range =;
 		for x in  -radius..(radius + 1) {
 			for y in  -radius..(radius + 1) {
 				for z in  -radius..(radius + 1) {
@@ -344,6 +348,7 @@ fn terrain_thread(
 					GeneratorCommand::Generate(pos) => queue.push(pos),
 				}
 			}
+			if queue.is_empty() {continue;}
 			// sort so closest chunk is at the end
 			let player_loc = *player_pos.lock().unwrap();
 			queue.sort_by(|a, b| a.distance_squared_to(player_loc).partial_cmp(&b.distance_squared_to(player_loc)).unwrap());
@@ -400,6 +405,7 @@ fn mesh_thread(
 					}
 				}
 			}
+			if queue.is_empty() {continue;}
 			// sort so closest chunk is at the end
 			let player = *player_loc.lock().unwrap() * WIDTH_F;
 			queue.sort_by(|a, b| a.wpos.distance_squared_to(player).partial_cmp(&b.wpos.distance_squared_to(player)).unwrap());

@@ -67,7 +67,8 @@ impl ChunkMesh {
 	
 	pub fn remesh_partial(&mut self, core: &ChunkCore, materials: &MaterialList, pos: Vector3, old_voxel: Voxel) {
 		if !self.fast.inited {
-			self.fast.generate_fast(core)
+			self.fast.generate_fast(core);
+			godot_print!("full fast mesh");
 		}
 		else {
 			self.fast.remesh_partial(core, pos, old_voxel);
@@ -118,6 +119,7 @@ impl Mesher {
 
 	/// fast but suboptimal mesh
 	pub fn generate_fast(&mut self, core: &ChunkCore) {
+		self.inited = true;
 		for s in self.surfaces.iter_mut() {
 			s.clear();
 		}
@@ -133,6 +135,8 @@ impl Mesher {
 		self.trim();
 	}
 
+	/// slower greedy mesh
+	/// <5% triangle count on normal terrain
 	pub fn generate_greedy(&mut self, core: &ChunkCore) {
 		self.inited = true;
 		for s in self.surfaces.iter_mut() {
@@ -222,20 +226,18 @@ impl Mesher {
 							}
 						}
 						else { // remain hidden
-							if voxel != prev {
-								if !strips_active.iter().any(|q| q.voxel == voxel) {
-									let new_quad = QuadStrip {
-										voxel,
-										start_min: hidden_start,
-										start_max: offset,
-										end_min: offset+1,
-										end_max: WIDTH,
-										slice_start: slice,
-										slice_end: slice+1,
-										visible: false,
-									};
-									strips_active.push(new_quad);
-								}
+							if voxel != prev && !strips_active.iter().any(|q| q.voxel == voxel) {
+								let new_quad = QuadStrip {
+									voxel,
+									start_min: hidden_start,
+									start_max: offset,
+									end_min: offset+1,
+									end_max: WIDTH,
+									slice_start: slice,
+									slice_end: slice+1,
+									visible: false,
+								};
+								strips_active.push(new_quad);
 							}
 						}
 						prev_top = top;
@@ -250,46 +252,43 @@ impl Mesher {
 				let mut a = 0;
 				let mut b = 0;
 				while a < quad_strips.len() - 1 {
-					let mut main = quad_strips[a].clone();
-					let other = quad_strips[b].clone();
-					if main.slice_end == other.slice_start && other.voxel == main.voxel && main.visible &&
-					((main.start_min >= other.start_min && main.start_min <= other.start_max) // a starts in b's range
-					|| (other.start_min >= main.start_min && other.start_min <= main.start_max)) // b starts in a's range
+					let quad_a = &quad_strips[a];
+					let quad_b = &quad_strips[b];
+					if quad_a.slice_end == quad_b.slice_start && quad_b.voxel == quad_a.voxel && quad_a.visible &&
+					((quad_a.start_min >= quad_b.start_min && quad_a.start_min <= quad_b.start_max) // a starts in b's range
+					|| (quad_b.start_min >= quad_a.start_min && quad_b.start_min <= quad_a.start_max)) // b starts in a's range
 					&&
-						((main.end_min >= other.end_min && main.end_min <= other.end_max) // a ends in b's range
-					|| (other.end_min >= main.end_min && other.end_min <= main.end_max)) // b ends in a's range
+						((quad_a.end_min >= quad_b.end_min && quad_a.end_min <= quad_b.end_max) // a ends in b's range
+					|| (quad_b.end_min >= quad_a.end_min && quad_b.end_min <= quad_a.end_max)) // b ends in a's range
 					 {// merge strips
 						// new width
-						main.slice_end = other.slice_end;
+						quad_strips[a].slice_end = quad_strips[b].slice_end;
 						// new valid end range
-						if other.end_min > main.end_min {
-							main.end_min = other.end_min;
+						if quad_strips[a].end_min < quad_strips[b].end_min {
+							quad_strips[a].end_min = quad_strips[b].end_min;
 						}
-						if other.end_max < main.end_max {
-							main.end_max = other.end_max;
+						if quad_strips[a].end_max > quad_strips[b].end_max {
+							quad_strips[a].end_max = quad_strips[b].end_max;
 						}
 						// new valid start range
-						if other.start_min > main.start_min {
-							main.start_min = other.start_min;
+						if quad_strips[a].start_min < quad_strips[b].start_min {
+							quad_strips[a].start_min = quad_strips[b].start_min;
 						}
-						if other.start_max < main.start_max {
-							main.start_max = other.start_max;
+						if quad_strips[a].start_max > quad_strips[b].start_max {
+							quad_strips[a].start_max = quad_strips[b].start_max;
 						}
 						quad_strips.remove(b);
-						quad_strips[a] = main;
 					}
 					else {
 						b += 1;
 						// there is a gap between a and b in the slice width direction
-						if main.slice_end < other.slice_start {
-							// move forward
+						if quad_a.slice_end < quad_b.slice_start {
 							a += 1;
 							b = a;
 						}
 					}
 					// b is last quad
 					if b >= quad_strips.len() {
-						// move forward
 						a += 1;
 						b = a;
 					}
@@ -321,9 +320,11 @@ impl Mesher {
 			affected_surfaces.push(self.ensure_surface(v));
 		}
 
-		// remove affected quads
-		for surf_i in affected_surfaces.iter().filter(|&i| *i != usize::MAX) {
-			self.surfaces[*surf_i].remove_quads_in_bound(pos - Vector3::ONE*0.1, pos + Vector3::ONE*1.1);
+		if old_voxel.is_surface() {
+			// remove affected quads
+			for surf_i in affected_surfaces.iter().filter(|&i| *i != usize::MAX) {
+				self.surfaces[*surf_i].remove_quads_in_bound(pos - Vector3::ONE*0.1, pos + Vector3::ONE*1.1);
+			}
 		}
 
 		if voxel != EMPTY {
