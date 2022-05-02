@@ -92,7 +92,7 @@ void fragment() {
 		abs(UV2.x - UV2.y) < 0.02) {
 		uv_vis = 0.5;
 	}
-	if (disable_debug_uv > 0.1) {
+	if (disable_debug_uv < 0.1) {
 		uv_vis = 1.0;
 	}
 	// vec3 col = vec3(color, UV.x*10.0);

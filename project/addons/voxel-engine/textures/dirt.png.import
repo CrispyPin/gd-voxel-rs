@@ -2,36 +2,34 @@
 
 importer="texture"
 type="StreamTexture"
-path.s3tc="res://.import/dirt.png-2c3a5df79a904a0b58f3888b2058f8ee.s3tc.stex"
-path.etc2="res://.import/dirt.png-2c3a5df79a904a0b58f3888b2058f8ee.etc2.stex"
+path="res://.import/dirt.png-2c3a5df79a904a0b58f3888b2058f8ee.stex"
 metadata={
-"imported_formats": [ "s3tc", "etc2" ],
-"vram_texture": true
+"vram_texture": false
 }
 
 [deps]
 
 source_file="res://addons/voxel-engine/textures/dirt.png"
-dest_files=[ "res://.import/dirt.png-2c3a5df79a904a0b58f3888b2058f8ee.s3tc.stex", "res://.import/dirt.png-2c3a5df79a904a0b58f3888b2058f8ee.etc2.stex" ]
+dest_files=[ "res://.import/dirt.png-2c3a5df79a904a0b58f3888b2058f8ee.stex" ]
 
 [params]
 
-compress/mode=2
+compress/mode=0
 compress/lossy_quality=0.7
 compress/hdr_mode=0
 compress/bptc_ldr=0
 compress/normal_map=0
 flags/repeat=0
 flags/filter=false
-flags/mipmaps=true
+flags/mipmaps=false
 flags/anisotropic=false
-flags/srgb=2
+flags/srgb=0
 process/fix_alpha_border=true
 process/premult_alpha=false
 process/HDR_as_SRGB=false
 process/invert_color=false
 process/normal_map_invert_y=false
 stream=false
-size_limit=0
+size_limit=1024
 detect_3d=false
 svg/scale=1.0

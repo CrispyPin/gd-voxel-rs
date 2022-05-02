@@ -1,5 +1,6 @@
 extends Spatial
 
+export var enable_highlight = true
 
 onready var world = $"/root/Main/VoxelWorld"
 onready var player = $".."
@@ -44,10 +45,8 @@ func _process(delta):
 
 func raycast():
 	var result = world.cast_ray(player.translation, forward(), 12.0)
-#	indicator.translation = (result.pos + result.normal*0.5).floor()
 	indicator.translation = (result.pos - result.normal*0.5).floor()
-#	indicator.translation = result.pos.floor()
-	indicator.visible = result.hit
+	indicator.visible = result.hit && enable_highlight
 	return result
 
 
