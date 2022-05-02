@@ -177,10 +177,10 @@ impl VoxelWorld {
 		// bad way of doing increasing cubes for loading
 		let radius = self.load_distance as i32;
 		
-		let range = -radius..(radius + 1);
-		for x in range.clone() {
-			for y in range.clone() {
-				for z in range.clone() {
+		// let range =;
+		for x in  -radius..(radius + 1) {
+			for y in  -radius..(radius + 1) {
+				for z in  -radius..(radius + 1) {
 					let loc = center_chunk + ivec3(x, y, z);
 					self.load_or_generate(loc);
 				}

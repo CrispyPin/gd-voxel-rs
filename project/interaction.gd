@@ -5,6 +5,7 @@ onready var world = $"/root/Main/VoxelWorld"
 onready var player = $".."
 onready var indicator = $"/root/Main/HighlightBox"
 onready var debugtext = $"/root/Main/DebugUI/DEBUGTEXT"
+onready var chunkwire = $"/root/Main/ChunkHighlight"
 var vtype := 1
 
 var t_since_update := 0.0
@@ -14,6 +15,7 @@ func _ready():
 	pass
 
 func _process(delta):
+	chunkwire.translation = (player.translation / 32).floor() * 32
 	t_since_update += delta
 	if t_since_update >= 0.3:
 		world.set_player_pos(player.translation)
