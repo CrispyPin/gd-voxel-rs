@@ -106,13 +106,15 @@ impl VoxelWorld {
 		}
 		if changed && self.auto_load {
 			self.load_near();
-			self.unload_far();
 		}
 	}
 
 	#[export]
 	fn _process(&mut self, owner: &Node, _delta: f32) {
 		self.collect_chunks(owner);
+		if self.auto_load {
+			self.unload_far();
+		}
 	}
 
 	/// casts ray through world, sees unloaded chunks as empty
@@ -316,24 +318,13 @@ fn terrain_thread(
 		let mut queue = Vec::new();
 
 		'mainloop: loop {
-			if queue.is_empty() {
-				if let Ok(cmd) = gen_queue_recv.recv() {
-					match cmd {
-						GeneratorCommand::Exit => break 'mainloop,
-						GeneratorCommand::Cancel(loc) => {
-							let locv = loc_to_locv(loc);
-							for i in 0..queue.len() {
-								if queue[i] == locv {
-									queue.remove(i);
-									break;
-								}
-							}
-						},
-						GeneratorCommand::Generate(pos) => queue.push(pos),
-					}
-				}
-			}
-			while let Ok(cmd) = gen_queue_recv.try_recv() {
+			let mut recieved = if queue.is_empty() {
+				// if queue is empty, block thread until more chunks are requested to save cpu
+				gen_queue_recv.recv().ok()
+			} else {
+				gen_queue_recv.try_recv().ok()
+			};
+			while let Some(cmd) = recieved.take() {
 				match cmd {
 					GeneratorCommand::Exit => break 'mainloop,
 					GeneratorCommand::Cancel(loc) => {
@@ -347,6 +338,7 @@ fn terrain_thread(
 					},
 					GeneratorCommand::Generate(pos) => queue.push(pos),
 				}
+				recieved = gen_queue_recv.try_recv().ok();
 			}
 			if queue.is_empty() {continue;}
 			// sort so closest chunk is at the end
@@ -373,24 +365,13 @@ fn mesh_thread(
 		let mut queue = Vec::new();
 		
 		'mainloop: loop {
-			if queue.is_empty() {
-				if let Ok(cmd) = mesh_queue_recv.recv() {
-					match cmd {
-						MeshCommand::Exit => break 'mainloop,
-						MeshCommand::Generate(chunk) => queue.push(chunk),
-						MeshCommand::Cancel(loc) => {
-							let locv = loc_to_locv(loc);
-							for i in 0..queue.len() {
-								if wpos_to_locv(queue[i].wpos) == locv {
-									queue.remove(i);
-									break;
-								}
-							}
-						}
-					}
-				}
-			}
-			while let Ok(cmd) = mesh_queue_recv.try_recv() {
+			let mut recieved = if queue.is_empty() {
+				// if queue is empty, block thread until more chunks are requested to save cpu
+				mesh_queue_recv.recv().ok()
+			} else {
+				mesh_queue_recv.try_recv().ok()
+			};
+			while let Some(cmd) = recieved.take() {
 				match cmd {
 					MeshCommand::Exit => break 'mainloop,
 					MeshCommand::Generate(chunk) => queue.push(chunk),
@@ -404,6 +385,7 @@ fn mesh_thread(
 						}
 					}
 				}
+				recieved = mesh_queue_recv.try_recv().ok();
 			}
 			if queue.is_empty() {continue;}
 			// sort so closest chunk is at the end
