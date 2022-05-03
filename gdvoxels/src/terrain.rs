@@ -15,6 +15,11 @@ pub struct TerrainGenerator {
 }
 
 impl TerrainGenerator {
+	pub fn loc_has_terrain(loc: ChunkLoc) -> bool {
+		loc.1 < 3 && loc.1 > -3
+	}
+
+
 	pub fn new(seed: i64) -> Self {
 		let mut instance = Self {
 			seed,
@@ -48,6 +53,10 @@ impl TerrainGenerator {
 
 	pub fn generate(&self, wpos: Vector3) -> ChunkCore {
 		let mut new_core = ChunkCore::new();
+		let loc = wpos_to_loc(wpos);
+		if !Self::loc_has_terrain(loc) {
+			return new_core;
+		}
 
 /* 		for i in 0..VOLUME {
 			let vpos = index_to_vposv(i);
@@ -58,13 +67,6 @@ impl TerrainGenerator {
 			}
 		} */
 
-		if wpos.y > WIDTH_F * 4.0 {
-			return new_core;
-		}
-		if wpos.y < WIDTH_F * -4.0 {
-			return new_core;
-		}
-
 		for x in 0..WIDTH {
 			for z in 0..WIDTH {
 				let world_x = x as f64 + wpos.x as f64;
@@ -74,12 +76,15 @@ impl TerrainGenerator {
 					let pos_y = y as f32 + wpos.y;
 					if  pos_y < height {
 						new_core.set_voxel(Vector3::new(x as f32, y as f32, z as f32), 1);
+						new_core.empty = false;
 					}
 					else if pos_y < height + 2.0 {
 						new_core.set_voxel(Vector3::new(x as f32, y as f32, z as f32), 2);
+						new_core.empty = false;
 					}
 					else if pos_y < height + 3.0 {
 						new_core.set_voxel(Vector3::new(x as f32, y as f32, z as f32), 3);
+						new_core.empty = false;
 					}
 				}
 			}

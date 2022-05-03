@@ -4,6 +4,7 @@ use crate::common::*;
 
 
 pub struct ChunkCore {
+	pub empty: bool,
 	pub voxels: Box<[Voxel; VOLUME]>,
 }
 
@@ -11,6 +12,7 @@ pub struct ChunkCore {
 impl ChunkCore {
 	pub fn new() -> Self {
 		Self {
+			empty: true,
 			// create array on the heap
 			voxels: vec![0u8; VOLUME].into_boxed_slice().try_into().unwrap()
 		}
@@ -19,6 +21,7 @@ impl ChunkCore {
 	#[allow(unused)]
 	pub fn new_filled(v: Voxel) -> Self {
 		Self {
+			empty: v == EMPTY,
 			voxels: vec![v; VOLUME].into_boxed_slice().try_into().unwrap()
 		}
 	}

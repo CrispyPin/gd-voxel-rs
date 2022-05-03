@@ -22,6 +22,7 @@ pub struct Chunk {
 
 impl Chunk {
 	pub fn new(wpos: Vector3, core: ChunkCore) -> Self {
+		let wpos = (wpos / WIDTH_F).floor() * WIDTH_F;
 		let node = unsafe { MeshInstance::new().assume_shared() };
 		Self {
 			wpos,
@@ -32,11 +33,22 @@ impl Chunk {
 		}
 	}
 
+	pub fn is_empty(&self) -> bool {
+		self.core.empty
+	}
+
+	pub fn mark_empty(&mut self, state: bool) {
+		self.core.empty = state;
+	}
+
 	pub fn array_mesh(&self) -> &Ref<ArrayMesh, Shared> {
 		self.mesh.array_mesh()
 	}
 
 	pub fn mesh_fast(&mut self, materials: &MaterialList) {
+		if self.core.empty {
+			return;
+		}
 		let start = Instant::now();
 		self.mesh.mesh_fast(&self.core, materials);
 		if DEBUG_MESH_TIMES {
@@ -46,6 +58,9 @@ impl Chunk {
 	}
 
 	pub fn optimise(&mut self, materials: &MaterialList) {
+		if self.core.empty {
+			return;
+		}
 		let start = Instant::now();
 		self.mesh.optimise(&self.core, materials);
 		if DEBUG_MESH_TIMES {

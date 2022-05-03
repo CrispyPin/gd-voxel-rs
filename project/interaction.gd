@@ -25,15 +25,19 @@ func _process(delta):
 	debugtext.text += "\nforward: " + str((forward() * 100).round() / 100)
 	debugtext.text += "\npos: " + str(player.translation.floor())
 	debugtext.text += "\nvoxel type: " + str(vtype)
+	debugtext.text += "\ntotal chunks: " + str(world.chunk_count())
+	debugtext.text += "\nloaded chunks: " + str(world.loaded_chunk_count())
+	debugtext.text += "\nempty chunks: " + str(world.empty_chunk_count())
+	debugtext.text += "\ngenerating chunks: " + str(world.waiting_chunk_count())
 
 	var result = raycast()
 
-	if Input.is_action_just_pressed("place"):
+	if Input.is_action_pressed("place"):
 		if result.hit:
 			if world.get_voxel(result.pos + result.normal*0.5) == 0:
 				world.set_voxel(result.pos + result.normal*0.5, vtype)
 
-	if Input.is_action_just_pressed("break"):
+	if Input.is_action_pressed("break"):
 		if result.hit:
 			world.set_voxel(result.pos - result.normal*0.4, 0)
 

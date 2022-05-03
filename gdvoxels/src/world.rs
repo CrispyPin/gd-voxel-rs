@@ -4,6 +4,7 @@ use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread::{self, JoinHandle};
 use gdnative::prelude::*;
 
+use crate::chunk::core::ChunkCore;
 use crate::common::*;
 use crate::chunk::*;
 use crate::materials::*;
@@ -39,7 +40,7 @@ pub struct VoxelWorld {
 	#[property]
 	max_chunks_unloaded: u16,
 	player_loc: Arc<Mutex<Vector3>>,
-	chunks: HashMap<ChunkLoc, Option<Chunk>>,
+	chunks: HashMap<ChunkLoc, ChunkContainer>,
 	materials: Arc<MaterialList>,
 
 	gen_queue: Sender<GeneratorCommand>,
@@ -47,6 +48,12 @@ pub struct VoxelWorld {
 	finished_chunks_recv: Receiver<Chunk>,
 	mesh_thread_handle: Option<JoinHandle<()>>,
 	gen_thread_handle: Option<JoinHandle<()>>,
+}
+
+enum ChunkContainer {
+	Waiting,
+	Ready(Chunk),
+	Empty,
 }
 
 
@@ -154,29 +161,54 @@ impl VoxelWorld {
 	}
 
 	#[export]
-	fn set_voxel(&mut self, _owner: &Node, pos: Vector3, voxel: Voxel) {
-		let loc = wpos_to_loc(pos);
+	fn set_voxel(&mut self, owner: &Node, wpos: Vector3, voxel: Voxel) {
+		let loc = wpos_to_loc(wpos);
 		
-		if self.chunk_is_loaded(loc) {
+		if self.chunks.contains_key(&loc) {
 			let materials = self.materials.clone();
-			let chunk = self.get_chunk_mut_unsafe(loc).unwrap();
-			let pos = wpos_to_vpos(pos);
-			let old_voxel = chunk.get_voxel(pos);
-			chunk.set_voxel(pos, voxel);
-			chunk.remesh_pos(&materials, pos, old_voxel);
+			let chunkc = self.get_chunk_mut(loc).unwrap();
+			let vpos = wpos_to_vpos(wpos);
+			if chunkc.is_ready() {
+				let old_voxel = chunkc.get_voxel(vpos);
+				chunkc.set_voxel(vpos, voxel);
+				chunkc.chunk_mut().unwrap().remesh_pos(&materials, vpos, old_voxel);
+			}
+			else if chunkc.is_empty() {
+				let mut new_chunk = Chunk::new(wpos, ChunkCore::new());
+				new_chunk.set_voxel(vpos, voxel);
+				new_chunk.mark_empty(false);
+				new_chunk.mesh_fast(&materials);
+				self.spawn_chunk_node(owner, loc, &new_chunk);
+				self.chunks.insert(loc, ChunkContainer::Ready(new_chunk));
+			}
 		}
 	}
 
 	#[export]
-	fn get_voxel(&mut self, _owner: &Node, pos: Vector3) -> Voxel{
-		let loc = wpos_to_loc(pos);
-		if self.chunk_is_loaded(loc) {
-			let chunk = self.get_chunk_unsafe(loc).unwrap();
-			chunk.get_voxel(wpos_to_vpos(pos))
-		}
-		else {
-			EMPTY
-		}
+	fn get_voxel(&mut self, _owner: &Node, wpos: Vector3) -> Voxel{
+		let loc = wpos_to_loc(wpos);
+		let vpos = wpos_to_vpos(wpos);
+		self.get_chunk(loc).unwrap().get_voxel(vpos)
+	}
+
+	#[export]
+	fn chunk_count(&self, _owner: &Node) -> usize {
+		self.chunks.len()
+	}
+
+	#[export]
+	fn loaded_chunk_count(&self, _owner: &Node) -> usize {
+		self.chunks.values().filter(|x| x.is_ready()).count()
+	}
+
+	#[export]
+	fn empty_chunk_count(&self, _owner: &Node) -> usize {
+		self.chunks.values().filter(|x| x.is_empty()).count()
+	}
+
+	#[export]
+	fn waiting_chunk_count(&self, _owner: &Node) -> usize {
+		self.chunks.values().filter(|x| x.is_waiting()).count()
 	}
 
 	/// load chunks around player pos
@@ -205,7 +237,7 @@ impl VoxelWorld {
 			let delta = delta.abs();
 			let dist = delta.x.max(delta.y).max(delta.z);
 			if dist > self.load_distance as f32 + 1.0 {
-				if chunk.is_some() {
+				if chunk.is_ready() || chunk.is_empty() {
 					to_unload.push(*loc);
 				}
 				else {
@@ -231,19 +263,22 @@ impl VoxelWorld {
 	fn unload(&mut self, loc: ChunkLoc) {
 		if self.chunk_is_loaded(loc) {
 			unsafe {
-				self.get_chunk_unsafe(loc)
+				self.get_chunk(loc)
+				.unwrap()
+				.chunk()
 				.unwrap()
 				.node
 				.assume_safe()
 				.queue_free();
 			}
-			self.chunks.remove(&loc);
 		}
+		self.chunks.remove(&loc);
 	}
 
-	fn cancel_generation(&self, loc: ChunkLoc) {
+	fn cancel_generation(&mut self, loc: ChunkLoc) {
 		self.gen_queue.send(GeneratorCommand::Cancel(loc)).unwrap();
 		self.mesh_queue.send(MeshCommand::Cancel(loc)).unwrap();
+		self.chunks.remove(&loc);
 	}
 
 	/// if chunk at loc is not already loaded, generate a new one
@@ -253,28 +288,32 @@ impl VoxelWorld {
 		if self.chunk_is_loaded(loc) || self.chunk_is_loading(loc) {
 			return;
 		}
-		self.begin_create_chunk(loc);
+		self.begin_generate_chunk(loc);
 	}
 
-	fn begin_create_chunk(&mut self, loc: ChunkLoc) {
-		self.chunks.insert(loc, None);
-		self.gen_queue.send(GeneratorCommand::Generate(loc_to_locv(loc))).unwrap();
+	fn begin_generate_chunk(&mut self, loc: ChunkLoc) {
+		if TerrainGenerator::loc_has_terrain(loc) {
+			self.chunks.insert(loc, ChunkContainer::Waiting);
+			self.gen_queue.send(GeneratorCommand::Generate(loc_to_locv(loc))).unwrap();
+		}
+		else {
+			self.chunks.insert(loc, ChunkContainer::Empty);
+		}
 	}
 
 	fn collect_chunks(&mut self, owner: &Node) {
 		let mut count = 0;
 		while let Ok(new_chunk) = self.finished_chunks_recv.try_recv() {
-			count += 1;
-			let k = locv_to_loc(new_chunk.wpos / WIDTH_F);
+			let loc = locv_to_loc(new_chunk.wpos / WIDTH_F);
 
-			let mesh = unsafe {new_chunk.node.assume_safe()};
-			mesh.set_mesh(new_chunk.array_mesh());
-			mesh.set_translation(new_chunk.wpos);
-			mesh.set_name(chunk_name(k));
-			let mesh = unsafe { mesh.assume_shared() };
-			owner.add_child(mesh, false);
+			if new_chunk.is_empty() {
+				self.chunks.insert(loc, ChunkContainer::Empty);
+				continue;
+			}
 			
-			self.chunks.insert(k, Some(new_chunk));
+			self.spawn_chunk_node(owner, loc, &new_chunk);
+			self.chunks.insert(loc, ChunkContainer::Ready(new_chunk));
+			count += 1;
 
 			if count > self.max_chunks_loaded {
 				break;
@@ -282,28 +321,37 @@ impl VoxelWorld {
 		}
 	}
 
+	fn spawn_chunk_node(&mut self, owner: &Node, loc: ChunkLoc, new_chunk: &Chunk) {
+		let mesh = unsafe {new_chunk.node.assume_safe()};
+		mesh.set_mesh(new_chunk.array_mesh());
+		mesh.set_translation(new_chunk.wpos);
+		mesh.set_name(chunk_name(loc));
+		let mesh = unsafe { mesh.assume_shared() };
+		owner.add_child(mesh, false);
+	}
+
 	fn chunk_is_loaded(&self, loc: ChunkLoc) -> bool {
 		if let Some(container) = self.chunks.get(&loc) {
-			return container.is_some();
+			return container.is_ready();
 		}
 		false
 	}
 
 	fn chunk_is_loading(&self, loc: ChunkLoc) -> bool {
 		if let Some(container) = self.chunks.get(&loc) {
-			return container.is_none();
+			return container.is_waiting();
 		}
 		false
 	}
 
 	#[inline]
-	fn get_chunk_mut_unsafe(&mut self, loc: ChunkLoc) -> Option<&mut Chunk> {
-		self.chunks.get_mut(&loc).unwrap().as_mut()
+	fn get_chunk_mut(&mut self, loc: ChunkLoc) -> Option<&mut ChunkContainer> {
+		self.chunks.get_mut(&loc)
 	}
 	
 	#[inline]
-	fn get_chunk_unsafe(&self, loc: ChunkLoc) -> Option<&Chunk> {
-		self.chunks.get(&loc).unwrap().as_ref()
+	fn get_chunk(&self, loc: ChunkLoc) -> Option<&ChunkContainer> {
+		self.chunks.get(&loc)
 	}
 }
 
@@ -399,6 +447,58 @@ fn mesh_thread(
 		}
 		godot_print!("Mesh thread exiting");
 	}).unwrap()
+}
+
+
+impl ChunkContainer {
+	fn chunk_mut(&mut self) -> Option<&mut Chunk> {
+		match self {
+			Self::Ready(chunk) => Some(chunk),
+			_ => None,
+		}
+	}
+
+	fn chunk(&self) -> Option<&Chunk> {
+		match self {
+			Self::Ready(chunk) => Some(chunk),
+			_ => None,
+		}
+	}
+
+	fn get_voxel(&self, vpos: Vector3) -> Voxel{
+		match self {
+			Self::Waiting => EMPTY,
+			Self::Ready(chunk) => chunk.get_voxel(vpos),
+			Self::Empty => EMPTY,
+		}
+	}
+	
+	fn set_voxel(&mut self, vpos: Vector3, voxel: Voxel) {
+		if let Self::Ready(chunk) = self {
+			chunk.set_voxel(vpos, voxel);
+		}
+	}
+
+	fn is_ready(&self) -> bool {
+		if let Self::Ready(_) = self {
+			return true;
+		}
+		false
+	}
+
+	fn is_empty(&self) -> bool {
+		if let Self::Empty = self {
+			return true;
+		}
+		false
+	}
+
+	fn is_waiting(&self) -> bool {
+		if let Self::Waiting = self {
+			return true;
+		}
+		false
+	}
 }
 
 
