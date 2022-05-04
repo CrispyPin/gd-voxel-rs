@@ -17,6 +17,7 @@ pub struct Chunk {
 	pub node: Ref<MeshInstance>,
 	core: ChunkCore,
 	mesh: ChunkMesh,
+	since_change: Instant,
 }
 
 
@@ -30,7 +31,12 @@ impl Chunk {
 			node,
 			core,
 			mesh: ChunkMesh::new(),
+			since_change: Instant::now(),
 		}
+	}
+
+	pub fn since_change(&self) -> Instant {
+		self.since_change
 	}
 
 	pub fn is_empty(&self) -> bool {
@@ -70,7 +76,12 @@ impl Chunk {
 	}
 
 	pub fn remesh_pos(&mut self, materials: &MaterialList, pos: Vector3, old_voxel: Voxel) {
+		let start = Instant::now();
 		self.mesh.remesh_partial(&self.core, materials, pos, old_voxel);
+		if DEBUG_MESH_TIMES {
+			let t = start.elapsed().as_micros() as f64 / 1000.0;
+			godot_print!("partial mesh took {}ms", t);
+		}
 	}
 
 	#[inline]
@@ -80,6 +91,7 @@ impl Chunk {
 	
 	#[inline]
 	pub fn set_voxel(&mut self, pos: Vector3, voxel: Voxel) {
+		self.since_change = Instant::now();
 		self.core.set_voxel(pos, voxel);
 	}
 }

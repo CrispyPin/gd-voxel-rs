@@ -41,6 +41,7 @@ pub struct VoxelWorld {
 	max_chunks_unloaded: u16,
 	player_loc: Arc<Mutex<Vector3>>,
 	chunks: HashMap<ChunkLoc, ChunkContainer>,
+	unoptimised_chunks: Vec<ChunkLoc>,
 	materials: Arc<MaterialList>,
 
 	gen_queue: Sender<GeneratorCommand>,
@@ -71,6 +72,7 @@ impl VoxelWorld {
 
 		Self {
 			chunks: HashMap::new(),
+			unoptimised_chunks: Vec::new(),
 			load_distance: 2,
 			max_chunks_loaded: 32,
 			max_chunks_unloaded: 64,
@@ -122,6 +124,7 @@ impl VoxelWorld {
 		if self.auto_load {
 			self.unload_far();
 		}
+		self.optimise_chunks();
 	}
 
 	/// casts ray through world, sees unloaded chunks as empty
@@ -181,14 +184,20 @@ impl VoxelWorld {
 				self.spawn_chunk_node(owner, loc, &new_chunk);
 				self.chunks.insert(loc, ChunkContainer::Ready(new_chunk));
 			}
+			if !self.unoptimised_chunks.contains(&loc) {
+				self.unoptimised_chunks.push(loc);
+			}
 		}
 	}
 
 	#[export]
-	fn get_voxel(&mut self, _owner: &Node, wpos: Vector3) -> Voxel{
+	fn get_voxel(&mut self, _owner: &Node, wpos: Vector3) -> Voxel {
 		let loc = wpos_to_loc(wpos);
 		let vpos = wpos_to_vpos(wpos);
-		self.get_chunk(loc).unwrap().get_voxel(vpos)
+		if self.chunk_is_loaded(loc) {
+			return self.get_chunk(loc).unwrap().get_voxel(vpos)
+		}
+		EMPTY
 	}
 
 	#[export]
@@ -279,6 +288,28 @@ impl VoxelWorld {
 		self.gen_queue.send(GeneratorCommand::Cancel(loc)).unwrap();
 		self.mesh_queue.send(MeshCommand::Cancel(loc)).unwrap();
 		self.chunks.remove(&loc);
+	}
+
+	fn optimise_chunks(&mut self) {
+		let mut i = 0;
+		while i < self.unoptimised_chunks.len() {
+			let loc = self.unoptimised_chunks[i];
+			if self.chunk_is_loaded(loc) {
+				let materials = self.materials.clone();
+				let chunk = self.get_chunk_mut(loc).unwrap().chunk_mut().unwrap();
+				if chunk.since_change().elapsed().as_millis() >= 1000 {
+					chunk.optimise(&materials);
+					godot_print!("Optimising chunk at {:?}", loc);
+					self.unoptimised_chunks.swap_remove(i);
+				}
+				else {
+					i += 1;
+				}
+			} else {
+				self.unoptimised_chunks.swap_remove(i);
+			}
+
+		}
 	}
 
 	/// if chunk at loc is not already loaded, generate a new one
