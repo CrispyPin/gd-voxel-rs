@@ -16,7 +16,7 @@ pub struct TerrainGenerator {
 
 impl TerrainGenerator {
 	pub fn loc_has_terrain(loc: ChunkLoc) -> bool {
-		loc.1 < 3 && loc.1 > -3
+		loc.1 < 3 && loc.1 > -4
 	}
 
 

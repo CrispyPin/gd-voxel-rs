@@ -11,12 +11,12 @@ pub const NORMALS: [Vector3; 6] = [
 	ivec3(0, 0, 1), ivec3(0, 0, -1)];
 
 const FACE_VERTS: [[Vector3; 4]; 6] = [
-	[ivec3(1, 0, 1), ivec3(1, 1, 1), ivec3(1, 1, 0), ivec3(1, 0, 0)],
-	[ivec3(0, 0, 0), ivec3(0, 1, 0), ivec3(0, 1, 1), ivec3(0, 0, 1)],
+	[ivec3(1, 1, 1), ivec3(1, 1, 0), ivec3(1, 0, 0), ivec3(1, 0, 1)],
+	[ivec3(0, 1, 0), ivec3(0, 1, 1), ivec3(0, 0, 1), ivec3(0, 0, 0)],
 	[ivec3(0, 1, 0), ivec3(1, 1, 0), ivec3(1, 1, 1), ivec3(0, 1, 1)],
 	[ivec3(0, 0, 1), ivec3(1, 0, 1), ivec3(1, 0, 0), ivec3(0, 0, 0)],
-	[ivec3(0, 0, 1), ivec3(0, 1, 1), ivec3(1, 1, 1), ivec3(1, 0, 1)],
-	[ivec3(1, 0, 0), ivec3(1, 1, 0), ivec3(0, 1, 0), ivec3(0, 0, 0)]];
+	[ivec3(0, 1, 1), ivec3(1, 1, 1), ivec3(1, 0, 1), ivec3(0, 0, 1)],
+	[ivec3(1, 1, 0), ivec3(0, 1, 0), ivec3(0, 0, 0), ivec3(1, 0, 0)]];
 
 const QUAD_OFFSETS: [usize; 6] = [0, 1, 2, 2, 3, 0];
 
@@ -519,10 +519,10 @@ impl QuadStrip {
 	fn transformed_verts(&self, face: usize, layer: usize) -> [Vector3; 4] {
 		match face {
 			0 => [
-				uvec3(layer+1, self.slice_start, self.start_max),
-				uvec3(layer+1, self.slice_start, self.end_min),
 				uvec3(layer+1, self.slice_end, self.end_min),
 				uvec3(layer+1, self.slice_end, self.start_max),
+				uvec3(layer+1, self.slice_start, self.start_max),
+				uvec3(layer+1, self.slice_start, self.end_min),
 			],
 			1 => [
 				uvec3(layer, self.slice_end, self.start_max),
@@ -543,16 +543,16 @@ impl QuadStrip {
 				uvec3(self.start_max, layer, self.slice_start),
 			],
 			4 => [
-				uvec3(self.slice_start, self.start_max, layer+1),
 				uvec3(self.slice_start, self.end_min, layer+1),
 				uvec3(self.slice_end, self.end_min, layer+1),
 				uvec3(self.slice_end, self.start_max, layer+1),
+				uvec3(self.slice_start, self.start_max, layer+1),
 			],
 			5 => [
-				uvec3(self.slice_end, self.start_max, layer),
 				uvec3(self.slice_end, self.end_min, layer),
 				uvec3(self.slice_start, self.end_min, layer),
 				uvec3(self.slice_start, self.start_max, layer),
+				uvec3(self.slice_end, self.start_max, layer),
 			],
 			_ => panic!("invalid face index in QuadStrip.transformed_verts")
 		}

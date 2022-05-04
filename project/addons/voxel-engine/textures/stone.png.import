@@ -2,21 +2,19 @@
 
 importer="texture"
 type="StreamTexture"
-path.s3tc="res://.import/stone.png-ffc7ec8fc350b75d296aac3e0f66845d.s3tc.stex"
-path.etc2="res://.import/stone.png-ffc7ec8fc350b75d296aac3e0f66845d.etc2.stex"
+path="res://.import/stone.png-ffc7ec8fc350b75d296aac3e0f66845d.stex"
 metadata={
-"imported_formats": [ "s3tc", "etc2" ],
-"vram_texture": true
+"vram_texture": false
 }
 
 [deps]
 
 source_file="res://addons/voxel-engine/textures/stone.png"
-dest_files=[ "res://.import/stone.png-ffc7ec8fc350b75d296aac3e0f66845d.s3tc.stex", "res://.import/stone.png-ffc7ec8fc350b75d296aac3e0f66845d.etc2.stex" ]
+dest_files=[ "res://.import/stone.png-ffc7ec8fc350b75d296aac3e0f66845d.stex" ]
 
 [params]
 
-compress/mode=2
+compress/mode=0
 compress/lossy_quality=0.7
 compress/hdr_mode=0
 compress/bptc_ldr=0
@@ -25,8 +23,8 @@ flags/repeat=0
 flags/filter=false
 flags/mipmaps=true
 flags/anisotropic=false
-flags/srgb=2
-process/fix_alpha_border=true
+flags/srgb=0
+process/fix_alpha_border=false
 process/premult_alpha=false
 process/HDR_as_SRGB=false
 process/invert_color=false

@@ -21,14 +21,15 @@ func _process(delta):
 	if t_since_update >= 0.3:
 		world.set_player_pos(player.translation)
 		t_since_update = 0
-	debugtext.text = "FPS: " + str(Engine.get_frames_per_second())
-	debugtext.text += "\nforward: " + str((forward() * 100).round() / 100)
-	debugtext.text += "\npos: " + str(player.translation.floor())
-	debugtext.text += "\nvoxel type: " + str(vtype)
-	debugtext.text += "\ntotal chunks: " + str(world.chunk_count())
-	debugtext.text += "\nloaded chunks: " + str(world.loaded_chunk_count())
-	debugtext.text += "\nempty chunks: " + str(world.empty_chunk_count())
-	debugtext.text += "\ngenerating chunks: " + str(world.waiting_chunk_count())
+	debugtext.text = " FPS: " + str(Engine.get_frames_per_second())
+	debugtext.text += "\n Load distance: " + str(world.load_distance)
+	debugtext.text += "\n forward: " + str((forward() * 100).round() / 100)
+	debugtext.text += "\n pos: " + str(player.translation.floor())
+	debugtext.text += "\n voxel type: " + str(vtype)
+	debugtext.text += "\n total chunks: " + str(world.chunk_count())
+	debugtext.text += "\n loaded chunks: " + str(world.loaded_chunk_count())
+	debugtext.text += "\n empty chunks: " + str(world.empty_chunk_count())
+	debugtext.text += "\n generating chunks: " + str(world.waiting_chunk_count())
 
 	var result = raycast()
 

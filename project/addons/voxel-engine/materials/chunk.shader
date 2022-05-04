@@ -32,7 +32,8 @@ void vertex() {
 		NORMAL = vec3(0., 0., -1.);
 	}
 	UV2 = fract(VERTEX.zy) * 100.0;
-	UV = vec2(norm_i, 0.0);
+	// UV = UV2;
+	// UV = vec2(norm_i, 0.0);
 	// COLOR = vec4(fract(VERTEX.x), 0., 0., 1.);
 	// NORMAL = vec3(0., 1., 0.);
 
@@ -40,50 +41,71 @@ void vertex() {
 }
 
 void fragment() {
+	vec3 cam_pos = CAMERA_MATRIX[3].xyz;
 	vec3 pos = (CAMERA_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	float dist = length(cam_pos - pos);
+	float lod = dist/48.0;
 	pos = fract(pos);
 	vec3 normal = (CAMERA_MATRIX * vec4(NORMAL, 0.0)).xyz;
 
 	vec4 color = vec4(0.0);
-	/* 
-	if (normal.x > .999) {
+	/* if (normal.x > .9) {
 		color = texture(tex_p_x, (1.0 - pos.zy));
 	}
-	else if (normal.x < -.999) {
+	else if (normal.x < -.9) {
 		color = texture(tex_n_x, vec2(pos.z, 1.0 - pos.y));
 	}
-	else if (normal.y > .999) {
+	else if (normal.y > .9) {
 		color = texture(tex_p_y, vec2(pos.x, pos.z));
 	}
-	else if (normal.y < -.999) {
+	else if (normal.y < -.9) {
 		color = texture(tex_n_y, vec2(1.0 - pos.x, pos.z));
 	}
-	else if (normal.z > .999) {
+	else if (normal.z > .9) {
 		color = texture(tex_p_z, vec2(pos.x, 1.0-pos.y));
 	}
-	else if (normal.z < -.999) {
+	else if (normal.z < -.9) {
 		color = texture(tex_n_z, (1.0 - pos.xy));
 	} */
-
-	if (UV.x < 0.01) {
-		color = texture(tex_p_x, (1.0 - pos.zy));
+	if (normal.x > .9) {
+		color = textureLod(tex_p_x, (1.0 - pos.zy), lod);
 	}
-	else if (UV.x < 0.02) {
-		color = texture(tex_n_x, vec2(pos.z, 1.0 - pos.y));
+	else if (normal.x < -.9) {
+		color = textureLod(tex_n_x, vec2(pos.z, 1.0 - pos.y), lod);
 	}
-	else if (UV.x < 0.03) {
-		color = texture(tex_p_y, vec2(pos.x, pos.z));
+	else if (normal.y > .9) {
+		color = textureLod(tex_p_y, vec2(pos.x, pos.z), lod);
 	}
-	else if (UV.x < 0.04) {
-		color = texture(tex_n_y, vec2(1.0 - pos.x, pos.z));
+	else if (normal.y < -.9) {
+		color = textureLod(tex_n_y, vec2(1.0 - pos.x, pos.z), lod);
 	}
-	else if (UV.x < 0.05) {
-		color = texture(tex_p_z, vec2(pos.x, 1.0-pos.y));
+	else if (normal.z > .9) {
+		color = textureLod(tex_p_z, vec2(pos.x, 1.0-pos.y), lod);
 	}
-	else {
-		color = texture(tex_n_z, (1.0 - pos.xy));
+	else if (normal.z < -.9) {
+		color = textureLod(tex_n_z, (1.0 - pos.xy), lod);
 	}
-
+/* 
+	vec2 uv = UV;
+	if (normal.x > .9) {
+		color = textureLod(tex_p_x, uv, lod);
+	}
+	else if (normal.x < -.9) {
+		color = textureLod(tex_n_x, uv, lod);
+	}
+	else if (normal.y > .9) {
+		color = textureLod(tex_p_y, uv, lod);
+	}
+	else if (normal.y < -.9) {
+		color = textureLod(tex_n_y, uv, lod);
+	}
+	else if (normal.z > .9) {
+		color = textureLod(tex_p_z, uv, lod);
+	}
+	else if (normal.z < -.9) {
+		color = textureLod(tex_n_z, uv, lod);
+	}
+*/
 	float uv_vis = 1.0;
 	if (UV2.x > 0.98 ||
 		UV2.x < 0.02 ||
