@@ -125,7 +125,7 @@ impl Mesher {
 		}
 		for v_index in 0..VOLUME {
 			let voxel = core.voxels[v_index];
-			if voxel != EMPTY {
+			if voxel.is_surface() {
 				let surf_i = self.ensure_surface(voxel);
 				self.surfaces[surf_i].allocate_batch(6, 64);
 				let pos = index_to_vposv(v_index);
@@ -335,7 +335,7 @@ impl Mesher {
 		else { // set faces for surrounding voxels; essentially an inverted version of the other case
 			for face in 0..6 {
 				let other_voxel = adjacent_voxels[face];
-				if other_voxel != EMPTY {
+				if other_voxel.is_surface() {
 					let other_pos = pos - NORMALS[face];
 					let surf_i = affected_surfaces[face + 2];
 					self.surfaces[surf_i].allocate_batch(6, 6);
@@ -357,7 +357,7 @@ impl Mesher {
 	fn add_cube(&mut self, pos: Vector3, surface_index: usize, core: &ChunkCore) {
 		for face in 0..6 {
 			let normal = NORMALS[face];
-			if core.get_voxel(pos + normal) == EMPTY {
+			if core.get_voxel(pos + normal).is_transparent() {
 				let verts = [
 					pos + FACE_VERTS[face][0],
 					pos + FACE_VERTS[face][1],

@@ -1,4 +1,5 @@
 shader_type spatial;
+// render_mode depth_draw_alpha_prepass;
 //render_mode cull_disabled;
 //render_mode unshaded;
 

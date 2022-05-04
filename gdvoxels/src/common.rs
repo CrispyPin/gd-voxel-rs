@@ -136,6 +136,8 @@ impl VoxelData for Voxel {
 			1 => "stone".into(),
 			2 => "dirt".into(),
 			3 => "grass".into(),
+			4 => "frame".into(),
+			5 => "leaves".into(),
 			255 => "debug".into(),
 			other => format!("{}", other),
 		}
@@ -154,11 +156,13 @@ impl VoxelData for Voxel {
 	#[inline]
 	fn is_transparent(&self) -> bool {
 		*self == 0
+		|| *self == 4 
+		|| *self == 5
 	}
 
 	#[inline]
 	fn is_opaque(&self) -> bool {
-		*self != 0
+		!self.is_transparent()
 	}
 }
 
