@@ -299,7 +299,6 @@ impl VoxelWorld {
 				let chunk = self.get_chunk_mut(loc).unwrap().chunk_mut().unwrap();
 				if chunk.since_change().elapsed().as_millis() >= 1000 {
 					chunk.optimise(&materials);
-					godot_print!("Optimising chunk at {:?}", loc);
 					self.unoptimised_chunks.swap_remove(i);
 				}
 				else {
@@ -308,7 +307,6 @@ impl VoxelWorld {
 			} else {
 				self.unoptimised_chunks.swap_remove(i);
 			}
-
 		}
 	}
 

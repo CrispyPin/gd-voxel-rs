@@ -3,32 +3,11 @@ A WIP voxel system for Godot.
 
 spiritual successor to https://github.com/CrispyPin/voxel-meshing
 
-**Todo**:
-- greedy mesh after chunk is stale
-- handle voxels with alpha
+# Todo:
+- improve terrain generation
 - collision/player controller
 
-**mesh optimisation**:  
-- when chunk is stale for some seconds:
-- start a thread for greedy mesh
-- mark as unchanged
-- copy voxel data
-- greedy mesh
-- apply greedy mesh if still unchanged
-- keep fast mesh in memory and revert to it if a change happens
-
-# structure
-- chunks: Hashmap<ChunkLoc, Option<Chunk>>
-	- ChunkLoc = (i32, i32, i32)
-	- Option<Chunk>
-		- mesh: ChunkMesh
-		- core: ChunkCore
-			- voxels: Box<[Voxel, VOLUME]>
-		- node: Ref<MeshInstance, Shared>
-		- wpos: Vector3
-		- loc: ChunkLoc
-
-# naming:
+## Naming:
 - wpos = Vector3; world space coordinate
 - loc = ChunkLoc; i32 tuple for chunk location
 - locv = Vector3; chunk location in vector form (should be floored)

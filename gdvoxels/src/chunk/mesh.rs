@@ -68,7 +68,6 @@ impl ChunkMesh {
 	pub fn remesh_partial(&mut self, core: &ChunkCore, materials: &MaterialList, pos: Vector3, old_voxel: Voxel) {
 		if !self.fast.inited {
 			self.fast.generate_fast(core);
-			godot_print!("full fast mesh");
 		}
 		else {
 			self.fast.remesh_partial(core, pos, old_voxel);

@@ -50,7 +50,7 @@ albedo_color = Color( 0, 1, 1, 1 )
 [node name="Main" type="Node"]
 
 [node name="VoxelWorld" parent="." instance=ExtResource( 1 )]
-load_distance = 24
+load_distance = 16
 auto_load = true
 max_chunks_loaded = 64
 max_chunks_unloaded = 256
@@ -92,7 +92,6 @@ material/0 = SubResource( 5 )
 [node name="Camera" parent="." instance=ExtResource( 2 )]
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 12, 1 )
 far = 8192.0
-speed_base = 1
 speed_mod = 15.0
 
 [node name="Crosshair" type="TextureRect" parent="."]
