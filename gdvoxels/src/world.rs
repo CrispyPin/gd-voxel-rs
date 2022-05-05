@@ -42,7 +42,9 @@ pub struct VoxelWorld {
 	player_loc: Arc<Mutex<Vector3>>,
 	chunks: HashMap<ChunkLoc, ChunkContainer>,
 	unoptimised_chunks: Vec<ChunkLoc>,
+	unload_queue: Vec<ChunkLoc>,
 	materials: Arc<MaterialList>,
+
 
 	gen_queue: Sender<GeneratorCommand>,
 	mesh_queue: Sender<MeshCommand>,
@@ -73,6 +75,7 @@ impl VoxelWorld {
 		Self {
 			chunks: HashMap::new(),
 			unoptimised_chunks: Vec::new(),
+			unload_queue: Vec::new(),
 			load_distance: 2,
 			max_chunks_loaded: 32,
 			max_chunks_unloaded: 64,
@@ -115,15 +118,15 @@ impl VoxelWorld {
 		}
 		if changed && self.auto_load {
 			self.load_near();
+			self.queue_unload_far();
 		}
 	}
 
 	#[export]
 	fn _process(&mut self, owner: &Node, _delta: f32) {
 		self.collect_chunks(owner);
-		if self.auto_load {
-			self.unload_far();
-		}
+
+		self.unload();
 		self.optimise_chunks();
 	}
 
@@ -236,31 +239,22 @@ impl VoxelWorld {
 	}
 
 	/// unload chunks far from player
-	fn unload_far(&mut self) {
+	fn queue_unload_far(&mut self) {
 		let player_loc = *self.player_loc.lock().unwrap();
 		
-		let mut to_unload = Vec::new();
+		// let mut to_unload = Vec::new();
 		let mut to_cancel = Vec::new();
 		for (loc, chunk) in self.chunks.iter() {
 			let delta = loc_to_locv(*loc) - player_loc;
 			let delta = delta.abs();
 			let dist = delta.x.max(delta.y).max(delta.z);
 			if dist > self.load_distance as f32 + 1.0 {
-				if chunk.is_ready() || chunk.is_empty() {
-					to_unload.push(*loc);
+				if chunk.is_ready() {
+					self.unload_queue.push(*loc);
 				}
 				else {
 					to_cancel.push(*loc);
 				}
-			}
-			
-		}
-		let mut count = 0;
-		for loc in to_unload {
-			self.unload(loc);
-			count += 1;
-			if count > self.max_chunks_unloaded {
-				break;
 			}
 		}
 		for loc in to_cancel {
@@ -269,19 +263,27 @@ impl VoxelWorld {
 		}
 	}
 
-	fn unload(&mut self, loc: ChunkLoc) {
-		if self.chunk_is_loaded(loc) {
-			unsafe {
-				self.get_chunk(loc)
-				.unwrap()
-				.chunk()
-				.unwrap()
-				.node
-				.assume_safe()
-				.queue_free();
+	fn unload(&mut self) {
+		let mut count = 0;
+		while let Some(loc) = self.unload_queue.pop() {
+			if self.chunk_is_loaded(loc) {
+				unsafe {
+					self.get_chunk(loc)
+					.unwrap()
+					.chunk()
+					.unwrap()
+					.node
+					.assume_safe()
+					.queue_free();
+				}
+				count += 1;
+			}
+			self.chunks.remove(&loc);
+			if count > self.max_chunks_unloaded {
+				break;
 			}
 		}
-		self.chunks.remove(&loc);
+		
 	}
 
 	fn cancel_generation(&mut self, loc: ChunkLoc) {
@@ -327,6 +329,16 @@ impl VoxelWorld {
 		}
 		else {
 			self.chunks.insert(loc, ChunkContainer::Empty);
+		}
+		if self.unload_queue.contains(&loc) {
+			let mut i = 0;
+			for j in 0..self.unload_queue.len() {
+				if self.unload_queue[j] == loc {
+					i = j;
+					break;
+				}
+			}
+			self.unload_queue.swap_remove(i);
 		}
 	}
 
