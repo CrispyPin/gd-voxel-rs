@@ -170,15 +170,15 @@ impl VoxelWorld {
 		if self.chunks.contains_key(&loc) {
 			let materials = self.materials.clone();
 			let chunkc = self.get_chunk_mut(loc).unwrap();
-			let vpos = wpos_to_vpos(wpos);
+			let vposv = wpos_to_vposv(wpos);
 			if chunkc.is_ready() {
-				let old_voxel = chunkc.get_voxel(vpos);
-				chunkc.set_voxel(vpos, voxel);
-				chunkc.chunk_mut().unwrap().remesh_pos(&materials, vpos, old_voxel);
+				let old_voxel = chunkc.get_voxel(vposv);
+				chunkc.set_voxel(vposv, voxel);
+				chunkc.chunk_mut().unwrap().remesh_pos(&materials, vposv, old_voxel);
 			}
 			else if chunkc.is_empty() {
 				let mut new_chunk = Chunk::new(wpos, ChunkCore::new());
-				new_chunk.set_voxel(vpos, voxel);
+				new_chunk.set_voxel(vposv, voxel);
 				new_chunk.mark_empty(false);
 				new_chunk.mesh_fast(&materials);
 				self.spawn_chunk_node(owner, loc, &new_chunk);
@@ -193,7 +193,7 @@ impl VoxelWorld {
 	#[export]
 	fn get_voxel(&mut self, _owner: &Node, wpos: Vector3) -> Voxel {
 		let loc = wpos_to_loc(wpos);
-		let vpos = wpos_to_vpos(wpos);
+		let vpos = wpos_to_vposv(wpos);
 		if self.chunk_is_loaded(loc) {
 			return self.get_chunk(loc).unwrap().get_voxel(vpos)
 		}

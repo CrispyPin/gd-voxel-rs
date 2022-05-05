@@ -10,6 +10,11 @@ pub const NORMALS: [Vector3; 6] = [
 	ivec3(0, 1, 0), ivec3(0, -1, 0),
 	ivec3(0, 0, 1), ivec3(0, 0, -1)];
 
+const NORMALS_I8: [VoxelPos; 6] = [
+	(1, 0, 0), (-1, 0, 0),
+	(0, 1, 0), (0, -1, 0),
+	(0, 0, 1), (0, 0, -1)];
+
 const FACE_VERTS: [[Vector3; 4]; 6] = [
 	[ivec3(1, 1, 1), ivec3(1, 1, 0), ivec3(1, 0, 0), ivec3(1, 0, 1)],
 	[ivec3(0, 1, 0), ivec3(0, 1, 1), ivec3(0, 0, 1), ivec3(0, 0, 0)],
@@ -152,8 +157,14 @@ impl Mesher {
 					let mut hidden_start = 0;
 					
 					for offset in 0..(WIDTH+1) {
-						let voxel = core.get_voxel(layered_pos(face, layer, slice, offset));
-						let top = core.get_voxel(layered_pos(face, layer, slice, offset) + NORMALS[face]);
+						let voxel = core.get_voxel_i(layered_pos(face, layer, slice, offset));
+						let mut top_pos = layered_pos(face, layer, slice, offset);
+						top_pos.0 += NORMALS_I8[face].0;
+						top_pos.1 += NORMALS_I8[face].1;
+						top_pos.2 += NORMALS_I8[face].2;
+						let top = core.get_voxel_i(top_pos);
+						// let voxel = core.get_voxel(layered_pos(face, layer, slice, offset));
+						// let top = core.get_voxel(layered_pos(face, layer, slice, offset) + NORMALS[face]);
 
 						if top.is_transparent() && prev_top.is_transparent() { // remain visible
 							if voxel != prev {
@@ -322,7 +333,7 @@ impl Mesher {
 		if old_voxel.is_surface() {
 			// remove affected quads
 			for surf_i in affected_surfaces.iter().filter(|&i| *i != usize::MAX) {
-				self.surfaces[*surf_i].remove_quads_in_bound(pos - Vector3::ONE*0.1, pos + Vector3::ONE*1.1);
+				self.surfaces[*surf_i].remove_quads_in_bound(pos - Vector3::ONE * 0.1, pos + Vector3::ONE * 1.1);
 			}
 		}
 
@@ -502,7 +513,7 @@ impl Surface {
 }
 
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct QuadStrip {
 	voxel: Voxel,
 	start_min: usize,
@@ -559,11 +570,20 @@ impl QuadStrip {
 }
 
 
-fn layered_pos(face: usize, layer: usize, slice: usize, offset: usize) -> Vector3 {
+// fn layered_pos(face: usize, layer: usize, slice: usize, offset: usize) -> Vector3 {
+// 	match face {
+// 		0 | 1 => uvec3(layer, slice, offset),
+// 		2 | 3 => uvec3(offset, layer, slice),
+// 		4 | 5 => uvec3(slice, offset, layer),
+// 		_ => panic!("invalid face index for layered_pos()")
+// 	}
+// }
+
+fn layered_pos(face: usize, layer: usize, slice: usize, offset: usize) -> VoxelPos {
 	match face {
-		0 | 1 => uvec3(layer, slice, offset),
-		2 | 3 => uvec3(offset, layer, slice),
-		4 | 5 => uvec3(slice, offset, layer),
+		0 | 1 => (layer as i8, slice as i8, offset as i8),
+		2 | 3 => (offset as i8, layer as i8, slice as i8),
+		4 | 5 => (slice as i8, offset as i8, layer as i8),
 		_ => panic!("invalid face index for layered_pos()")
 	}
 }

@@ -6,6 +6,7 @@ pub const AREA: usize = WIDTH * WIDTH;
 pub const VOLUME: usize = AREA * WIDTH;
 
 pub const WIDTH_F: f32 = WIDTH as f32;
+pub const WIDTH_I8: i8 = WIDTH as i8;
 
 pub type Voxel = u8;
 pub const EMPTY: Voxel = 0;
@@ -16,6 +17,7 @@ pub const DEBUG_MESH_TIMES: bool = false;
 /// Represents a chunk location
 /// Loc(1,2,3) correspsonds to the chunk at (32, 64, 96) assuming a chunk size of 32
 pub type ChunkLoc = (i32, i32, i32);
+pub type VoxelPos = (i8, i8, i8);
 
 /// Convert world coordinate to a chunk location
 #[inline]
@@ -52,7 +54,7 @@ pub fn loc_to_locv(loc: ChunkLoc) -> Vector3 {
 
 /// convert world coordinate to a position within the chunk
 #[inline]
-pub fn wpos_to_vpos(world_pos: Vector3) -> Vector3 {
+pub fn wpos_to_vposv(world_pos: Vector3) -> Vector3 {
 	world_pos.floor().posmod(WIDTH_F)
 }
 
@@ -75,10 +77,34 @@ pub fn vposv_in_bounds(pos: Vector3) -> bool{
 }
 
 #[inline]
-pub fn pos_to_index(pos: Vector3) -> usize {
-	pos.x as usize * AREA
-	+ pos.y as usize * WIDTH
-	+ pos.z as usize
+pub fn vpos_in_bounds(vpos: VoxelPos) -> bool{
+	vpos.0 >= 0 && vpos.0 < WIDTH_I8 &&
+	vpos.1 >= 0 && vpos.1 < WIDTH_I8 &&
+	vpos.2 >= 0 && vpos.2 < WIDTH_I8
+}
+
+#[inline]
+pub fn vpos_to_index(vpos: VoxelPos) -> usize {
+	vpos.0 as usize * AREA
+	+ vpos.1 as usize * WIDTH
+	+ vpos.2 as usize
+}
+
+#[inline]
+pub fn vposv_to_index(vposv: Vector3) -> usize {
+	vposv.x as usize * AREA
+	+ vposv.y as usize * WIDTH
+	+ vposv.z as usize
+}
+
+#[inline]
+#[allow(unused)]
+pub fn index_to_vpos(i: usize) -> VoxelPos {
+	(
+		(i/AREA) as i8,
+		(i/WIDTH % WIDTH) as i8,
+		(i % WIDTH) as i8
+	)
 }
 
 #[inline]

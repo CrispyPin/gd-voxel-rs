@@ -27,16 +27,24 @@ impl ChunkCore {
 	}
 
 	#[inline]
-	pub fn get_voxel(&self, pos: Vector3) -> Voxel {
-		if vposv_in_bounds(pos) {
-			return self.get_voxel_unsafe(pos);
+	pub fn get_voxel(&self, vposv: Vector3) -> Voxel {
+		if vposv_in_bounds(vposv) {
+			return self.get_voxel_unsafe(vposv);
+		}
+		EMPTY
+	}
+
+	#[inline]
+	pub fn get_voxel_i(&self, vpos: VoxelPos) -> Voxel {
+		if vpos_in_bounds(vpos) {
+			return self.voxels[vpos_to_index(vpos)];
 		}
 		EMPTY
 	}
 	
 	#[inline]
 	pub fn get_voxel_unsafe(&self, pos: Vector3) -> Voxel {
-		self.voxels[pos_to_index(pos)]
+		self.voxels[vposv_to_index(pos)]
 	}
 
 	#[inline]
@@ -48,6 +56,6 @@ impl ChunkCore {
 	
 	#[inline]
 	pub fn set_voxel_unsafe(&mut self, pos: Vector3, voxel: Voxel) {
-		self.voxels[pos_to_index(pos)] = voxel;
+		self.voxels[vposv_to_index(pos)] = voxel;
 	}
 }
