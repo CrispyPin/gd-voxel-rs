@@ -5,15 +5,11 @@ export var enable_highlight = true
 onready var world = $"/root/Main/VoxelWorld"
 onready var player = $".."
 onready var indicator = $"/root/Main/HighlightBox"
-onready var debugtext = $"/root/Main/DebugUI/DEBUGTEXT"
 onready var chunkwire = $"/root/Main/ChunkHighlight"
 var vtype := 1
 
 var t_since_update := 0.0
 
-func _ready():
-#	world.set_voxel(Vector3(3,3,3), 1)
-	pass
 
 func _process(delta):
 	chunkwire.translation = (player.translation / 32).floor() * 32
@@ -21,15 +17,7 @@ func _process(delta):
 	if t_since_update >= 0.3:
 		world.set_player_pos(player.translation)
 		t_since_update = 0
-	debugtext.text = " FPS: " + str(Engine.get_frames_per_second())
-	debugtext.text += "\n Load distance: " + str(world.load_distance)
-	debugtext.text += "\n forward: " + str((forward() * 100).round() / 100)
-	debugtext.text += "\n pos: " + str(player.translation.floor())
-	debugtext.text += "\n voxel type: " + str(vtype)
-	debugtext.text += "\n total chunks: " + str(world.chunk_count())
-	debugtext.text += "\n loaded chunks: " + str(world.loaded_chunk_count())
-	debugtext.text += "\n empty chunks: " + str(world.empty_chunk_count())
-	debugtext.text += "\n generating chunks: " + str(world.waiting_chunk_count())
+
 
 	var result = raycast()
 
